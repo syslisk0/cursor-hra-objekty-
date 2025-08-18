@@ -31,7 +31,7 @@ export default function ScoreboardModal({ onClose }: Props) {
             {items.map((u, idx) => (
               <li key={u.uid} className="flex items-center justify-between bg-gray-900/50 px-3 py-2 rounded">
                 <span className="text-gray-300">#{idx + 1}</span>
-                <span className="flex-1 px-3 truncate">{u.username ?? u.email ?? 'Anonym'}</span>
+                <span className="flex-1 px-3 truncate">{u.username ?? 'Anonym'}</span>
                 <span className="font-semibold">{u.bestScore}</span>
               </li>
             ))}

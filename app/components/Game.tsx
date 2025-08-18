@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import GameMenu from './GameMenu';
 import GameCanvas from './GameCanvas';
 import GameOverScreen from './GameOverScreen';
+import { drawEnemy } from './EnemyDraw';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { updateBestScoreIfHigher } from '../services/userService';
@@ -471,10 +472,7 @@ export default function Game() {
         }
         if (obj.type === 'red') currentRedCount++;
         else if (obj.type === 'yellow') currentYellowCount++;
-        ctx.fillStyle = obj.color;
-        ctx.beginPath();
-        ctx.arc(obj.x, obj.y, obj.size, 0, Math.PI * 2);
-        ctx.fill();
+        drawEnemy(ctx, obj, mousePos);
         const distancePlayer = Math.sqrt(Math.pow(obj.x - mousePos.x, 2) + Math.pow(obj.y - mousePos.y, 2));
         if (distancePlayer < obj.size + PLAYER_RADIUS) {
           // Ignore collisions during invulnerability window

@@ -67,12 +67,19 @@ export default function GameCanvas({
         <div>Červené: {redObjectCount} (R: {displayedRedObjectSpeed.toFixed(2)})</div>
         <div>Žluté: {yellowObjectCount} (R: {displayedYellowObjectSpeed.toFixed(2)})</div>
       </div>
-      {/* Mobile overlay with condensed stats */}
-      <div className="sm:hidden absolute top-2 left-1/2 -translate-x-1/2 z-10 text-[12px] text-white bg-black/50 rounded px-2 py-1 flex items-center gap-2">
-        <span>{'❤'.repeat(Math.max(0, Math.min(hearts, 5))) || '0 ❤'}</span>
-        <span>Skóre: {score}</span>
-        <span>R: {displayedScoreSpeed.toFixed(1)}/s</span>
-        {timeSlowActive && <span className="text-yellow-300">Slow</span>}
+      {/* Mobile HUD above canvas */}
+      <div className="sm:hidden w-full max-w-[800px] text-white text-sm mb-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2">
+        <div className="flex items-center gap-1">
+          {Array.from({ length: Math.min(hearts, 5) }).map((_, idx) => (
+            <span key={idx} title="Srdíčko" className="text-red-500">❤</span>
+          ))}
+          {hearts === 0 && <span className="text-gray-400">0 ❤</span>}
+        </div>
+        <div>Skóre: {score}</div>
+        <div>R: {displayedScoreSpeed.toFixed(1)}/s</div>
+        {timeSlowActive && <div className="text-yellow-300">Slow</div>}
+        <div>Červené: {redObjectCount}</div>
+        <div>Žluté: {yellowObjectCount}</div>
       </div>
       <canvas
         ref={canvasRef}
