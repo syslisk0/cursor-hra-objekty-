@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 
 interface GameOverScreenProps {
   score: number;
@@ -36,6 +37,13 @@ export default function GameOverScreen({
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (onSubmitScore && recordInfo === null) {
+      handleSave();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
       <div className="text-center text-white p-6 bg-gray-800 rounded-lg shadow-xl">

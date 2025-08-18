@@ -4,6 +4,9 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import GameMenu from './GameMenu';
 import GameCanvas from './GameCanvas';
 import GameOverScreen from './GameOverScreen';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../lib/firebase';
+import { updateBestScoreIfHigher } from '../services/userService';
 import {
   GameObject,
   PendingSpawn,
@@ -116,6 +119,7 @@ export default function Game() {
     slowFactor: DAMAGE_SLOW_FACTOR
   });
   const invulnerableUntilRef = useRef<number>(0);
+  const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
 
   const resetGameValues = useCallback(() => {
     setScore(0);
@@ -167,6 +171,19 @@ export default function Game() {
   const backToMenu = useCallback(() => {
     setGameState('menu');
   }, []);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setCurrentUser(u ? { uid: u.uid, email: u.email } : null);
+    });
+    return () => unsub();
+  }, []);
+
+  const submitScore = useCallback(async (finalScore: number) => {
+    if (!currentUser) return { isRecord: false, best: finalScore };
+    const { updated, newBest } = await updateBestScoreIfHigher(currentUser.uid, currentUser.email, finalScore);
+    return { isRecord: updated, best: newBest };
+  }, [currentUser]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -625,6 +642,7 @@ export default function Game() {
           yellowObjectCount={yellowObjectCount}
           onPlayAgain={startGame}
           onBackToMenu={backToMenu}
+          onSubmitScore={submitScore}
         />
     </div>
   );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import ScoreboardModal from '@/app/components/ScoreboardModal';
 
 interface GameMenuProps {
   onStartGame: () => void;
@@ -8,9 +9,13 @@ interface GameMenuProps {
 
 export default function GameMenu({ onStartGame }: GameMenuProps) {
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showScoreboard, setShowScoreboard] = useState(false);
 
   const toggleInfoModal = useCallback(() => {
     setShowInfoModal(prev => !prev);
+  }, []);
+  const toggleScoreboard = useCallback(() => {
+    setShowScoreboard(prev => !prev);
   }, []);
 
   return (
@@ -28,6 +33,12 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
           className="px-8 py-4 bg-blue-500 rounded-lg hover:bg-blue-600 text-2xl font-semibold transition-colors"
         >
           Informace
+        </button>
+        <button
+          onClick={toggleScoreboard}
+          className="px-8 py-4 bg-purple-600 rounded-lg hover:bg-purple-500 text-2xl font-semibold transition-colors"
+        >
+          Žebříček skóre
         </button>
       </div>
       <p className="text-lg text-gray-400">made by syslisk0</p>
@@ -56,6 +67,10 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {showScoreboard && (
+        <ScoreboardModal onClose={toggleScoreboard} />
       )}
     </div>
   );
