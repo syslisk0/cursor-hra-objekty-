@@ -467,32 +467,33 @@ export default function Game() {
           if (now < invulnerableUntilRef.current) {
             return true;
           }
-          if (hearts > 0) {
-            setHearts(prev => Math.max(0, prev - 1));
-            // Trigger damage slow and knockback
-            setDamageSlowEffect({
-              isActive: true,
-              startTime: Date.now(),
-              duration: DAMAGE_SLOW_DURATION,
-              slowFactor: DAMAGE_SLOW_FACTOR
-            });
-            invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
-            objectsRef.current.forEach(o => {
-              const knockbackDirX = o.x - mousePos.x;
-              const knockbackDirY = o.y - mousePos.y;
-              const magnitude = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirY * knockbackDirY);
-              if (magnitude > 0) {
-                o.dx = (knockbackDirX / magnitude);
-                o.dy = (knockbackDirY / magnitude);
-                o.x += o.dx * KNOCKBACK_FORCE; 
-                o.y += o.dy * KNOCKBACK_FORCE; 
-              }
-            });
-            return true;
-          } else {
+          // If this hit would drop hearts to 0, end the game immediately
+          if (hearts <= 1) {
+            setHearts(0);
             endGame();
             return false;
           }
+          // Otherwise, consume one heart and apply slow + knockback
+          setHearts(prev => Math.max(0, prev - 1));
+          setDamageSlowEffect({
+            isActive: true,
+            startTime: Date.now(),
+            duration: DAMAGE_SLOW_DURATION,
+            slowFactor: DAMAGE_SLOW_FACTOR
+          });
+          invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
+          objectsRef.current.forEach(o => {
+            const knockbackDirX = o.x - mousePos.x;
+            const knockbackDirY = o.y - mousePos.y;
+            const magnitude = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirY * knockbackDirY);
+            if (magnitude > 0) {
+              o.dx = (knockbackDirX / magnitude);
+              o.dy = (knockbackDirY / magnitude);
+              o.x += o.dx * KNOCKBACK_FORCE; 
+              o.y += o.dy * KNOCKBACK_FORCE; 
+            }
+          });
+          return true;
         }
         return true;
       });
@@ -626,6 +627,7 @@ export default function Game() {
         hearts={hearts}
         timeSlowActive={timeSlowEffect.isActive}
         canvasRef={canvasRef}
+        onTouchPosition={(x, y) => setMousePos({ x, y })}
       />
     );
   }

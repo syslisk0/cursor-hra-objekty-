@@ -10,6 +10,7 @@ interface GameCanvasProps {
   hearts: number;
   timeSlowActive: boolean;
   canvasRef: React.RefObject<HTMLCanvasElement>;
+  onTouchPosition?: (x: number, y: number) => void;
 }
 
 export default function GameCanvas({
@@ -21,10 +22,20 @@ export default function GameCanvas({
   displayedYellowObjectSpeed,
   hearts,
   timeSlowActive,
-  canvasRef
+  canvasRef,
+  onTouchPosition
 }: GameCanvasProps) {
+  const handleTouch = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const touch = e.touches[0] || e.changedTouches[0];
+    if (!touch || !canvasRef.current) return;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (touch.clientX - rect.left) * (canvasRef.current.width / rect.width);
+    const y = (touch.clientY - rect.top) * (canvasRef.current.height / rect.height);
+    onTouchPosition?.(x, y);
+  };
   return (
-    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 p-4 relative">
+    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 p-4 relative overflow-hidden">
       <div className="text-white text-xl mb-2 w-[800px] flex items-center justify-start gap-4">
         <div className="flex items-center gap-1">
           {Array.from({ length: hearts }).map((_, idx) => (
@@ -43,7 +54,9 @@ export default function GameCanvas({
       <canvas
         ref={canvasRef}
         className="border-2 border-white rounded-lg bg-black"
-        style={{ width: '800px', height: '600px' }}
+        style={{ width: '800px', height: '600px', touchAction: 'none' }}
+        onTouchStart={handleTouch}
+        onTouchMove={handleTouch}
       />
     </div>
   );

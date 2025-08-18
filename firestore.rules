@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      // Čtení: přihlášený uživatel (aplikace vyžaduje login). Pokud chceš veřejný žebříček, změň na `allow read: if true;`
+      allow read: if request.auth != null;
+
+      // Vytvoření a update: pouze vlastního dokumentu
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+
+
