@@ -9,6 +9,7 @@ interface GameOverScreenProps {
   yellowObjectCount: number;
   onPlayAgain: () => void;
   onBackToMenu: () => void;
+  onSubmitScore?: (finalScore: number) => Promise<{ isRecord: boolean; best: number }>;
 }
 
 export default function GameOverScreen({
@@ -19,8 +20,22 @@ export default function GameOverScreen({
   redObjectCount,
   yellowObjectCount,
   onPlayAgain,
-  onBackToMenu
+  onBackToMenu,
+  onSubmitScore
 }: GameOverScreenProps) {
+  const [saving, setSaving] = useState(false);
+  const [recordInfo, setRecordInfo] = useState<{ isRecord: boolean; best: number } | null>(null);
+
+  const handleSave = async () => {
+    if (!onSubmitScore || saving) return;
+    setSaving(true);
+    try {
+      const res = await onSubmitScore(score);
+      setRecordInfo(res);
+    } finally {
+      setSaving(false);
+    }
+  };
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/50">
       <div className="text-center text-white p-6 bg-gray-800 rounded-lg shadow-xl">
@@ -32,6 +47,19 @@ export default function GameOverScreen({
         <div className="text-md mb-4">
           Červené objekty: {redObjectCount} | Žluté objekty: {yellowObjectCount}
         </div>
+        {recordInfo ? (
+          <div className="mb-4 text-green-400">
+            {recordInfo.isRecord ? `Nový rekord! (${recordInfo.best})` : `Tvůj nejlepší rekord je ${recordInfo.best}`}
+          </div>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="mb-4 px-6 py-2 bg-purple-600 rounded hover:bg-purple-500 disabled:opacity-50"
+          >
+            {saving ? 'Ukládám…' : 'Uložit skóre'}
+          </button>
+        )}
         <div className="flex gap-4 justify-center">
           <button
             onClick={onPlayAgain}
