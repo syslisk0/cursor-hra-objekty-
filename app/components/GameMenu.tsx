@@ -30,7 +30,7 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
           Informace
         </button>
       </div>
-      <p className="text-lg text-gray-400">Vytvořeno Štěpánem Dvořákem</p>
+      <p className="text-lg text-gray-400">made by syslisk0</p>
 
       {showInfoModal && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
