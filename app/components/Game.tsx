@@ -120,6 +120,18 @@ export default function Game() {
   });
   const invulnerableUntilRef = useRef<number>(0);
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
+  const [isPortrait, setIsPortrait] = useState<boolean>(false);
+
+  useEffect(() => {
+    const compute = () => setIsPortrait(typeof window !== 'undefined' && window.innerHeight >= window.innerWidth);
+    compute();
+    window.addEventListener('resize', compute);
+    window.addEventListener('orientationchange', compute as any);
+    return () => {
+      window.removeEventListener('resize', compute);
+      window.removeEventListener('orientationchange', compute as any);
+    };
+  }, []);
 
   const resetGameValues = useCallback(() => {
     setScore(0);
@@ -208,8 +220,10 @@ export default function Game() {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.getContext('2d')) return;
     const ctx = canvas.getContext('2d')!;
-    if (canvas.width !== 800) canvas.width = 800;
-    if (canvas.height !== 600) canvas.height = 600;
+    const targetW = isPortrait ? 600 : 800;
+    const targetH = isPortrait ? 800 : 600;
+    if (canvas.width !== targetW) canvas.width = targetW;
+    if (canvas.height !== targetH) canvas.height = targetH;
 
     const gameLoop = () => {
       const now = Date.now();
@@ -514,7 +528,7 @@ export default function Game() {
             gameLoopRef.current = null; 
         }
     };
-  }, [gameState, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect]);
+  }, [gameState, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect, isPortrait]);
 
   useEffect(() => {
     if (gameState !== 'playing') {
@@ -628,6 +642,7 @@ export default function Game() {
         timeSlowActive={timeSlowEffect.isActive}
         canvasRef={canvasRef}
         onTouchPosition={(x, y) => setMousePos({ x, y })}
+        isPortrait={isPortrait}
       />
     );
   }

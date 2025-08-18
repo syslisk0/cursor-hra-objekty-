@@ -9,6 +9,14 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && request.auth.uid == userId;
     }
+
+    // Rezervace unikátních uživatelských jmen
+    match /usernames/{usernameKey} {
+      allow read: if true; // pro ověření dostupnosti
+      // vytvořit smí pouze přihlášený uživatel; update/delete nepovolujeme
+      allow create: if request.auth != null && !exists(/databases/$(database)/documents/usernames/$(usernameKey));
+      allow update, delete: if false;
+    }
   }
 }
 

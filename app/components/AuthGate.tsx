@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { auth, googleProvider } from '../lib/firebase';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
-import { ensureUserDocument } from '../services/userService';
+import { ensureUserDocument, getUser } from '../services/userService';
+import UsernameModal from './UsernameModal';
 
 type Props = {
   children: React.ReactNode;
@@ -13,13 +14,22 @@ export default function AuthGate({ children }: Props) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsUsername, setNeedsUsername] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (nextUser) => {
+    const unsub = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       setLoading(false);
       if (nextUser) {
-        ensureUserDocument(nextUser).catch(() => {});
+        try {
+          await ensureUserDocument(nextUser);
+          const record = await getUser(nextUser.uid);
+          setNeedsUsername(!record?.username);
+        } catch (_) {
+          // ignore
+        }
+      } else {
+        setNeedsUsername(false);
       }
     });
     return () => unsub();
@@ -76,7 +86,11 @@ export default function AuthGate({ children }: Props) {
           Odhlásit
         </button>
       </div>
-      {children}
+      {needsUsername && user ? (
+        <UsernameModal user={user} onDone={() => setNeedsUsername(false)} />
+      ) : (
+        children
+      )}
     </div>
   );
 }
