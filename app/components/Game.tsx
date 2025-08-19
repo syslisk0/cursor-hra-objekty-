@@ -144,6 +144,19 @@ export default function Game() {
     };
   }, []);
 
+  // Developer mode: toggle immortality on Enter while playing
+  const devImmortalRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        devImmortalRef.current = !devImmortalRef.current;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [gameState]);
+
   const resetGameValues = useCallback(() => {
     setScore(0);
     objectsRef.current = [];
@@ -185,6 +198,17 @@ export default function Game() {
   const startGame = useCallback(() => {
     resetGameValues();
     setGameState('playing');
+  }, [resetGameValues]);
+
+  const startDeveloper = useCallback((targetScore?: number) => {
+    resetGameValues();
+    // start with immortality enabled
+    devImmortalRef.current = true;
+    setGameState('playing');
+    if (typeof targetScore === 'number' && isFinite(targetScore) && targetScore >= 0) {
+      setScore(targetScore);
+      lastObjectSpeedIncreaseScoreRef.current = targetScore; // prevent sudden speed jump
+    }
   }, [resetGameValues]);
 
   const endGame = useCallback(() => {
@@ -585,7 +609,25 @@ export default function Game() {
           const hitWallX = (obj.x - obj.size < 0) || (obj.x + obj.size > canvas.width);
           const hitWallY = (obj.y - obj.size < 0) || (obj.y + obj.size > canvas.height);
           if (obj.isBossProjectile && (hitWallX || hitWallY)) {
-            return false;
+            if (obj.bossProjectileKind === 'wave') {
+              return false; // wave projectiles die on wall
+            }
+            if (obj.bossProjectileKind === 'charge') {
+              // Clamp to wall impact point
+              obj.x = Math.max(obj.size, Math.min(obj.x, canvas.width - obj.size));
+              obj.y = Math.max(obj.size, Math.min(obj.y, canvas.height - obj.size));
+              if (typeof obj.bouncesRemaining === 'number' && obj.bouncesRemaining > 0) {
+                obj.bouncesRemaining -= 1;
+                // Retarget from current position to player's current position (no vanish)
+                const dirX2 = mousePos.x - obj.x;
+                const dirY2 = mousePos.y - obj.y;
+                const mag2 = Math.hypot(dirX2, dirY2) || 1;
+                obj.dx = dirX2 / mag2;
+                obj.dy = dirY2 / mag2;
+              } else {
+                return false; // after required repeats, disappear to allow next phase
+              }
+            }
           }
           if (hitWallX) {
             obj.dx = -obj.dx;
@@ -599,8 +641,8 @@ export default function Game() {
         if (obj.type === 'red') currentRedCount++;
         else if (obj.type === 'yellow') currentYellowCount++;
         drawEnemy(ctx, obj, mousePos);
-        // Boss projectile overlay (crown, eyes, mouth)
-        if ((obj as any).isBossProjectile) {
+        // Boss projectile overlay (only charge projectile has face/crown)
+        if ((obj as any).isBossProjectile && (obj as any).bossProjectileKind === 'charge') {
           const bx = obj.x; const by = obj.y; const br = obj.size;
           // crown
           ctx.save();
@@ -631,42 +673,50 @@ export default function Game() {
           if (now < invulnerableUntilRef.current) {
             return true;
           }
-          // If this hit would drop hearts to 0, end the game immediately
-          if (hearts <= 1) {
-            setHearts(0);
-            endGame();
-            return false;
-          }
-          // Otherwise, consume one heart and apply slow + knockback
-          setHearts(prev => Math.max(0, prev - 1));
-          setDamageSlowEffect({
-            isActive: true,
-            startTime: Date.now(),
-            duration: DAMAGE_SLOW_DURATION,
-            slowFactor: DAMAGE_SLOW_FACTOR
-          });
-          invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
-          objectsRef.current.forEach(o => {
-            const knockbackDirX = o.x - mousePos.x;
-            const knockbackDirY = o.y - mousePos.y;
-            const magnitude = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirY * knockbackDirY);
-            if (magnitude > 0) {
-              o.dx = (knockbackDirX / magnitude);
-              o.dy = (knockbackDirY / magnitude);
-              o.x += o.dx * KNOCKBACK_FORCE; 
-              o.y += o.dy * KNOCKBACK_FORCE; 
+          // Developer immortality toggle (Enter)
+          if (!devImmortalRef.current) {
+            // Boss charge projectiles should not disappear on hit
+            if (obj.isBossProjectile && obj.bossProjectileKind === 'charge') {
+              // small knockback still applies
+            } else {
+              // If this hit would drop hearts to 0, end the game immediately
+              if (hearts <= 1) {
+                setHearts(0);
+                endGame();
+                return false;
+              }
             }
-          });
+            // Otherwise, consume one heart and apply slow + knockback
+            setHearts(prev => Math.max(0, prev - 1));
+            setDamageSlowEffect({
+              isActive: true,
+              startTime: Date.now(),
+              duration: DAMAGE_SLOW_DURATION,
+              slowFactor: DAMAGE_SLOW_FACTOR
+            });
+            invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
+            objectsRef.current.forEach(o => {
+              const knockbackDirX = o.x - mousePos.x;
+              const knockbackDirY = o.y - mousePos.y;
+              const magnitude = Math.sqrt(knockbackDirX * knockbackDirX + knockbackDirY * knockbackDirY);
+              if (magnitude > 0) {
+                o.dx = (knockbackDirX / magnitude);
+                o.dy = (knockbackDirY / magnitude);
+                o.x += o.dx * KNOCKBACK_FORCE; 
+                o.y += o.dy * KNOCKBACK_FORCE; 
+              }
+            });
+          }
           return true;
         }
         return true;
       });
       setRedObjectCount(currentRedCount);
       setYellowObjectCount(currentYellowCount);
-      // Draw centered boss (intro/waves/final phases)
+      // Draw centered boss (visible in all boss phases)
       if ((bossRef.current as any)?.isActive) {
         const phase: any = (bossRef.current as any).phase;
-        if (phase === 'intro' || phase === 'wave_attacks' || phase === 'final_burst') {
+        if (phase === 'intro' || phase === 'wave_attacks' || phase === 'charge_attacks' || phase === 'final_burst' || phase === 'done') {
           const cx = (bossRef.current as any).centerX;
           const cy = (bossRef.current as any).centerY;
           const r = 18;
@@ -744,7 +794,8 @@ export default function Game() {
       scoreIntervalRef.current = setInterval(() => {
         setScore(prev => prev + 1);
         const elapsedTime = Date.now() - gameTimeStartRef.current;
-        if (elapsedTime - lastScoreAccelerationTimeRef.current >= SCORE_ACCELERATION_TIME_THRESHOLD) {
+        const inBossPrezoneNow = (score >= 900 && score < 1000);
+        if (!inBossPrezoneNow && elapsedTime - lastScoreAccelerationTimeRef.current >= SCORE_ACCELERATION_TIME_THRESHOLD) {
           const newInterval = Math.max(MIN_SCORE_INTERVAL, currentScoreIntervalMsRef.current * SCORE_ACCELERATION_FACTOR);
           if (newInterval !== currentScoreIntervalMsRef.current) {
             currentScoreIntervalMsRef.current = newInterval;
@@ -758,7 +809,8 @@ export default function Game() {
 
     setupScoreInterval();
 
-    if (score - lastObjectSpeedIncreaseScoreRef.current >= OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD) {
+    const inBossPrezone = score >= 900 && score < 1000;
+    if (!inBossPrezone && score - lastObjectSpeedIncreaseScoreRef.current >= OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD) {
       currentRedObjectSpeedRef.current *= OBJECT_SPEED_ACCELERATION_FACTOR;
       const newYellowSpeed = currentRedObjectSpeedRef.current / 2;
       setDisplayedRedObjectSpeed(currentRedObjectSpeedRef.current);
@@ -878,6 +930,12 @@ export default function Game() {
         setDisplayedScoreSpeed(1000 / currentScoreIntervalMsRef.current);
         lastScoreAccelerationTimeRef.current = 0;
         levelTextUntilRef.current = Date.now() + 2000;
+        // ensure field is clean while Level 2 text is shown
+        objectsRef.current = [];
+        pendingSpawnsRef.current = [];
+        pendingShieldSpawnsRef.current = [];
+        bombCollectiblesRef.current = [];
+        hourglassCollectiblesRef.current = [];
       }
     };
     const id = setInterval(tick, 16);
@@ -885,7 +943,7 @@ export default function Game() {
   }, [gameState, mousePos]);
 
   if (gameState === 'menu') {
-    return <GameMenu onStartGame={startGame} />;
+    return <GameMenu onStartGame={startGame} onStartDeveloper={startDeveloper} />;
   }
 
   if (gameState === 'playing') {

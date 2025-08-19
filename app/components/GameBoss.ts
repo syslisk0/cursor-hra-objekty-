@@ -16,12 +16,16 @@ export interface BossState {
   startedAt: number;
   centerX: number;
   centerY: number;
+  dx: number;
+  dy: number;
+  speed: number;
   // waves
   waveCount: number; // how many 16-projectile waves already performed
   waitingForProjectilesToDie: boolean;
   // charge
   chargeCount: number; // how many charges already performed
   chargeWaiting: boolean; // waiting for projectile to die and 1s confusion
+  chargeActive: boolean; // is boss currently charging (moving)
   // control
   nextActionAt: number; // timestamp when next action can happen
   // visuals
@@ -35,10 +39,14 @@ export function createInitialBossState(): BossState {
     startedAt: 0,
     centerX: 0,
     centerY: 0,
+    dx: 0,
+    dy: 0,
+    speed: 0,
     waveCount: 0,
     waitingForProjectilesToDie: false,
     chargeCount: 0,
     chargeWaiting: false,
+    chargeActive: false,
     nextActionAt: 0,
     laughUntil: 0,
   };
@@ -55,6 +63,9 @@ export function startBoss(state: BossState, centerX: number, centerY: number, no
   state.waveCount = 0;
   state.chargeCount = 0;
   state.waitingForProjectilesToDie = false;
+  state.chargeActive = false;
+  state.chargeWaiting = false;
+  state.dx = 0; state.dy = 0; state.speed = 0;
 }
 
 export function spawnRadialProjectiles(
@@ -72,6 +83,7 @@ export function spawnRadialProjectiles(
     const dy = Math.sin(angle);
     const obj = createObject(cx, cy, dx, dy, speed, color);
     obj.isBossProjectile = true;
+    obj.bossProjectileKind = 'wave';
     container.push(obj);
   }
 }
@@ -111,33 +123,39 @@ export function updateBoss(
       return state.phase;
     }
     case 'charge_attacks': {
-      // boss charges towards player's last position with speed 7, but keep direction
+      // boss charges itself towards player's last position with speed 7, direction fixed until wall
       if (state.chargeCount >= 4) {
         state.phase = 'final_burst';
         return state.phase;
       }
-      const alive = objects.filter(o => o.isBossProjectile).length;
       if (state.chargeWaiting) {
-        if (alive === 0) {
-          // projectile finished; start 1s confusion timer if not already
-          if (state.nextActionAt === 0) {
-            state.nextActionAt = now + 1000;
-          } else if (now >= state.nextActionAt) {
-            state.chargeWaiting = false;
-            state.nextActionAt = 0;
-            state.chargeCount += 1;
-          }
+        // confused pause after wall hit
+        if (state.nextActionAt === 0) state.nextActionAt = now + 1000;
+        if (now >= state.nextActionAt) {
+          state.chargeWaiting = false;
+          state.nextActionAt = 0;
         }
+      } else if (!state.chargeActive) {
+        // start a new charge
+        const mag = Math.max(1e-6, Math.hypot(playerPos.x - state.centerX, playerPos.y - state.centerY));
+        state.dx = (playerPos.x - state.centerX) / mag;
+        state.dy = (playerPos.y - state.centerY) / mag;
+        state.speed = 7;
+        state.chargeActive = true;
       } else {
-        if (alive === 0) {
-          // launch next charge
-          const mag = Math.max(1e-6, Math.hypot(playerPos.x - state.centerX, playerPos.y - state.centerY));
-          const ndx = (playerPos.x - state.centerX) / mag;
-          const ndy = (playerPos.y - state.centerY) / mag;
-          const obj = createObject(state.centerX, state.centerY, ndx, ndy, 7, '#ff0000');
-          obj.isBossProjectile = true;
-          objects.push(obj);
+        // move boss forward
+        state.centerX += state.dx * state.speed;
+        state.centerY += state.dy * state.speed;
+        // wall collision -> clamp, stop, confusion 1s, increment count
+        const r = 18; // boss radius must match renderer
+        const hitWall = (state.centerX - r < 0) || (state.centerX + r > canvas.width) || (state.centerY - r < 0) || (state.centerY + r > canvas.height);
+        if (hitWall) {
+          state.centerX = Math.max(r, Math.min(state.centerX, canvas.width - r));
+          state.centerY = Math.max(r, Math.min(state.centerY, canvas.height - r));
+          state.chargeActive = false;
           state.chargeWaiting = true;
+          state.nextActionAt = now + 1000;
+          state.chargeCount += 1;
         }
       }
       return state.phase;

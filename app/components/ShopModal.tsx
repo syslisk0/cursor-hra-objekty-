@@ -96,6 +96,36 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                           <path d="M10,10 L90,10 L80,40 L20,40 Z M20,40 L80,40 L50,110 Z" fill="url(#g)" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
                         </svg>
                       </div>
+                    ) : skin.id === 'space' ? (
+                      <div className="w-10 h-10 rounded-full relative" style={{ backgroundColor: skin.color, boxShadow: '0 0 8px 4px rgba(138,43,226,0.6)' }}>
+                        {/* stars */}
+                        <div className="absolute inset-0">
+                          {[...Array(12)].map((_, i) => (
+                            <div key={i} className="absolute rounded-full" style={{
+                              width: i % 5 === 0 ? 2 : 1,
+                              height: i % 5 === 0 ? 2 : 1,
+                              backgroundColor: i % 3 === 0 ? '#FFD700' : '#FFFFFF',
+                              left: `${(i * 17) % 36 + 2}px`,
+                              top: `${(i * 29) % 36 + 2}px`
+                            }} />
+                          ))}
+                        </div>
+                      </div>
+                    ) : skin.id === 'skull' ? (
+                      <div className="w-10 h-10 relative">
+                        <svg viewBox="0 0 100 120" className="w-10 h-10">
+                          {/* Lebka silueta */}
+                          <path d="M50,10 C72,10 90,28 90,50 C90,68 78,75 78,85 L78,95 L22,95 L22,85 C22,75 10,68 10,50 C10,28 28,10 50,10 Z" fill="#EEEEEE" stroke="#111" strokeWidth="2"/>
+                          {/* Oční důlky */}
+                          <circle cx="35" cy="50" r="8" fill="#000" />
+                          <circle cx="65" cy="50" r="8" fill="#000" />
+                          {/* Nos (obrácený trojúhelník) */}
+                          <path d="M50,58 L56,70 L44,70 Z" fill="#000" />
+                          {/* Zuby */}
+                          <rect x="30" y="88" width="40" height="10" fill="#F5F5F5" stroke="#111" strokeWidth="1.5" />
+                          <path d="M35,88 L35,98 M40,88 L40,98 M45,88 L45,98 M50,88 L50,98 M55,88 L55,98 M60,88 L60,98 M65,88 L65,98" stroke="#111" strokeWidth="1" />
+                        </svg>
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
                     )}

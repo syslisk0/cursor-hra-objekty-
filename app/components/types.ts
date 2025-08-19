@@ -9,6 +9,8 @@ export interface GameObject {
   size: number;
   type: 'red' | 'yellow';
   isBossProjectile?: boolean;
+  bossProjectileKind?: 'wave' | 'charge';
+  bouncesRemaining?: number;
 }
 
 export interface PendingSpawn {

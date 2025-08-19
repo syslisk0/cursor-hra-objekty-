@@ -1,4 +1,5 @@
-export type SkinId = 'green' | 'blue' | 'pink' | 'white' | 'peach' | 'gold' | 'diamond';
+export type SkinId = 'green' | 'blue' | 'pink' | 'white' | 'peach' | 'gold' | 'diamond' | 'skull' | 'space';
+// add new skins: skull (epic), space (legendary)
 
 export type Skin = {
   id: SkinId;
@@ -16,6 +17,8 @@ export const SKINS: Skin[] = [
   { id: 'peach', name: 'Broskvová kulička', color: '#FFC1A1', price: 10, rarity: 'rare' },
   { id: 'gold', name: 'Zlatá kulička', color: '#FFD000', price: 15, rarity: 'epic' },
   { id: 'diamond', name: 'Diamant', color: '#6EC6FF', price: 50, rarity: 'legendary' },
+  { id: 'skull', name: 'Lebka', color: '#EEEEEE', price: 25, rarity: 'epic' },
+  { id: 'space', name: 'Vesmírná kulička', color: '#0B0F33', price: 60, rarity: 'legendary' },
 ];
 
 export function getSkinColor(skinId: SkinId | string | undefined | null): string {

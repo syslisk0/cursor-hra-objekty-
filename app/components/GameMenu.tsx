@@ -11,9 +11,10 @@ type CoinsState = { coins: number; uid: string | null };
 
 interface GameMenuProps {
   onStartGame: () => void;
+  onStartDeveloper: (targetScore?: number) => void;
 }
 
-export default function GameMenu({ onStartGame }: GameMenuProps) {
+export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProps) {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showShop, setShowShop] = useState(false);
@@ -50,7 +51,7 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
   }, []);
 
   return (
-    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
+    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center relative">
       <h1 className="text-3xl sm:text-5xl font-bold mb-8">Vyhýbej se Objektům!</h1>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 mb-4 w-full max-w-md">
         <button
@@ -121,6 +122,22 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
           </div>
         </div>
       )}
+      {/* Developer button bottom-right */}
+      <button
+        onClick={() => {
+          const pwd = typeof window !== 'undefined' ? window.prompt('Zadej developerské heslo:') : null;
+          if (pwd === 'b14b82b83b43') {
+            const val = window.prompt('Zadej cílové skóre (číslo):');
+            const parsed = val != null ? parseInt(val, 10) : NaN;
+            const target = Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+            onStartDeveloper(target);
+          }
+        }}
+        className="absolute bottom-3 right-3 bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-2 rounded-lg"
+        title="Developer"
+      >
+        Developer
+      </button>
     </div>
   );
 }
