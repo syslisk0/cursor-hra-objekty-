@@ -1,17 +1,20 @@
 export const PLAYER_RADIUS = 10;
 export const OBJECT_SIZE = 20;
-export const INITIAL_RED_OBJECT_SPEED = 3 * 0.9; // 10% zpomalení
+// Globální škálování rychlosti hry (1.0 = původní, 0.9 = o 10% pomalejší)
+export const GLOBAL_SPEED_SCALE = 0.9;
+export const GLOBAL_TIME_SCALE = 0.9;
+export const INITIAL_RED_OBJECT_SPEED = 3 * GLOBAL_SPEED_SCALE; // 10% zpomalení
 export const OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD = 50;
-export const OBJECT_SPEED_ACCELERATION_FACTOR = 1.0 + (1.2 - 1.0) * 0.9; // 10% zpomalení zrychlování
+export const OBJECT_SPEED_ACCELERATION_FACTOR = 1.0 + (1.2 - 1.0) * GLOBAL_SPEED_SCALE; // 10% zpomalení zrychlování
 export const SPAWN_WARNING_DURATION = 1000;
 export const SPAWN_WARNING_MIN_RADIUS = 5;
 export const SPAWN_WARNING_MAX_RADIUS = 15;
-export const SPAWN_WARNING_PULSE_SPEED = 0.2 * 0.9; // 10% zpomalení
+export const SPAWN_WARNING_PULSE_SPEED = 0.2 * GLOBAL_SPEED_SCALE; // 10% zpomalení
 
-export const INITIAL_SCORE_INTERVAL = 1000 / 0.9; // 10% zpomalení (delší interval = pomalejší skórování)
-export const MIN_SCORE_INTERVAL = 100 / 0.9; // 10% zpomalení
+export const INITIAL_SCORE_INTERVAL = 1000 / GLOBAL_TIME_SCALE; // 10% zpomalení (delší interval = pomalejší skórování)
+export const MIN_SCORE_INTERVAL = 100 / GLOBAL_TIME_SCALE; // 10% zpomalení
 export const SCORE_ACCELERATION_TIME_THRESHOLD = 20000;
-export const SCORE_ACCELERATION_FACTOR = 1.0 - (1.0 - 0.7) * 0.9; // 10% zpomalení zrychlování skóre
+export const SCORE_ACCELERATION_FACTOR = 1.0 - (1.0 - 0.7) * GLOBAL_SPEED_SCALE; // 10% zpomalení zrychlování skóre
 
 export const YELLOW_OBJECT_CHANCE_THRESHOLD_SCORE = 100;
 export const YELLOW_OBJECT_SPAWN_CHANCE = 0.3;
@@ -26,7 +29,7 @@ export const SHIELD_SPAWN_INTERVAL_SCORE = 100;
 export const SHIELD_SPAWN_WARNING_DURATION = 1000;
 export const SHIELD_SPAWN_WARNING_MIN_RADIUS = 5;
 export const SHIELD_SPAWN_WARNING_MAX_RADIUS = 15;
-export const SHIELD_SPAWN_WARNING_PULSE_SPEED = 0.2 * 0.9; // 10% zpomalení
+export const SHIELD_SPAWN_WARNING_PULSE_SPEED = 0.2 * GLOBAL_SPEED_SCALE; // 10% zpomalení
 export const SHIELD_SPAWN_WARNING_COLOR = 'rgba(255, 80, 100, 0.5)';
 
 export const BOMB_COLLECTIBLE_SIZE = 18;

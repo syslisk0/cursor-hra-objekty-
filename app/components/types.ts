@@ -8,6 +8,7 @@ export interface GameObject {
   color: string;
   size: number;
   type: 'red' | 'yellow';
+  isBossProjectile?: boolean;
 }
 
 export interface PendingSpawn {

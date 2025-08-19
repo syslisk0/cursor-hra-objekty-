@@ -75,6 +75,7 @@ import {
   createExplosion,
   addHourglassCollectible
 } from './gameLogic';
+import { BossState, createInitialBossState, startBoss, updateBoss } from './GameBoss';
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null!);
@@ -97,6 +98,10 @@ export default function Game() {
   const lastBombSpawnScoreRef = useRef<number>(0);
   const lastHourglassSpawnScoreRef = useRef<number>(0);
   const destroyedByBombCountRef = useRef<number>(0);
+  const bossRef = useRef<BossState>(createInitialBossState());
+  const bossActiveRef = useRef<boolean>(false);
+  const levelRef = useRef<number>(1);
+  const levelTextUntilRef = useRef<number>(0);
 
   const [gameState, setGameState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
@@ -303,6 +308,17 @@ export default function Game() {
       
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Show level text overlay if active
+      if (levelTextUntilRef.current > now) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 42px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('LEVEL 2', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+      }
       // Damage pulsing overlay (background pulz)
       if (damageSlowEffect.isActive) {
         const t = (now - damageSlowEffect.startTime) / 1000;
@@ -566,11 +582,16 @@ export default function Game() {
         } else {
           obj.x += obj.dx * obj.speed * currentSlowFactor;
           obj.y += obj.dy * obj.speed * currentSlowFactor;
-          if (obj.x - obj.size < 0 || obj.x + obj.size > canvas.width) {
+          const hitWallX = (obj.x - obj.size < 0) || (obj.x + obj.size > canvas.width);
+          const hitWallY = (obj.y - obj.size < 0) || (obj.y + obj.size > canvas.height);
+          if (obj.isBossProjectile && (hitWallX || hitWallY)) {
+            return false;
+          }
+          if (hitWallX) {
             obj.dx = -obj.dx;
             obj.x = Math.max(obj.size, Math.min(obj.x, canvas.width - obj.size));
           }
-          if (obj.y - obj.size < 0 || obj.y + obj.size > canvas.height) {
+          if (hitWallY) {
             obj.dy = -obj.dy;
             obj.y = Math.max(obj.size, Math.min(obj.y, canvas.height - obj.size));
           }
@@ -578,6 +599,32 @@ export default function Game() {
         if (obj.type === 'red') currentRedCount++;
         else if (obj.type === 'yellow') currentYellowCount++;
         drawEnemy(ctx, obj, mousePos);
+        // Boss projectile overlay (crown, eyes, mouth)
+        if ((obj as any).isBossProjectile) {
+          const bx = obj.x; const by = obj.y; const br = obj.size;
+          // crown
+          ctx.save();
+          ctx.fillStyle = '#FFD000';
+          ctx.beginPath();
+          ctx.moveTo(bx - br * 0.8, by - br * 1.2);
+          ctx.lineTo(bx - br * 0.4, by - br * 1.7);
+          ctx.lineTo(bx, by - br * 1.2);
+          ctx.lineTo(bx + br * 0.4, by - br * 1.7);
+          ctx.lineTo(bx + br * 0.8, by - br * 1.2);
+          ctx.closePath();
+          ctx.fill();
+          // eyes
+          ctx.fillStyle = '#000000';
+          ctx.beginPath(); ctx.arc(bx - br * 0.3, by - br * 0.1, br * 0.12, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(bx + br * 0.3, by - br * 0.1, br * 0.12, 0, Math.PI * 2); ctx.fill();
+          // mouth
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = Math.max(1, br * 0.1);
+          ctx.beginPath();
+          ctx.arc(bx, by + br * 0.2, br * 0.35, 0, Math.PI);
+          ctx.stroke();
+          ctx.restore();
+        }
         const distancePlayer = Math.sqrt(Math.pow(obj.x - mousePos.x, 2) + Math.pow(obj.y - mousePos.y, 2));
         if (distancePlayer < obj.size + PLAYER_RADIUS) {
           // Ignore collisions during invulnerability window
@@ -616,6 +663,56 @@ export default function Game() {
       });
       setRedObjectCount(currentRedCount);
       setYellowObjectCount(currentYellowCount);
+      // Draw centered boss (intro/waves/final phases)
+      if ((bossRef.current as any)?.isActive) {
+        const phase: any = (bossRef.current as any).phase;
+        if (phase === 'intro' || phase === 'wave_attacks' || phase === 'final_burst') {
+          const cx = (bossRef.current as any).centerX;
+          const cy = (bossRef.current as any).centerY;
+          const r = 18;
+          // pulsing spawn aura during intro
+          if (phase === 'intro') {
+            const t = (now % 1000) / 1000;
+            const pulse = r + 10 * (0.5 + 0.5 * Math.sin(t * Math.PI * 2));
+            ctx.beginPath();
+            ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(255,0,0,0.5)';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+          }
+          // body
+          ctx.fillStyle = '#ff0000';
+          ctx.beginPath();
+          ctx.arc(cx, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+          // crown
+          ctx.fillStyle = '#FFD000';
+          ctx.beginPath();
+          ctx.moveTo(cx - r * 0.9, cy - r * 1.2);
+          ctx.lineTo(cx - r * 0.4, cy - r * 1.8);
+          ctx.lineTo(cx, cy - r * 1.2);
+          ctx.lineTo(cx + r * 0.4, cy - r * 1.8);
+          ctx.lineTo(cx + r * 0.9, cy - r * 1.2);
+          ctx.closePath();
+          ctx.fill();
+          // eyes
+          ctx.fillStyle = '#000000';
+          ctx.beginPath(); ctx.arc(cx - r * 0.35, cy - r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx + r * 0.35, cy - r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill();
+          // mouth (laugh during laughUntil)
+          const laughing = now <= (bossRef.current as any).laughUntil;
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = Math.max(1, r * 0.12);
+          ctx.beginPath();
+          if (laughing) {
+            ctx.arc(cx, cy + r * 0.15, r * 0.5, 0, Math.PI);
+          } else {
+            ctx.arc(cx, cy + r * 0.2, r * 0.35, 0, Math.PI);
+          }
+          ctx.stroke();
+        }
+      }
+
       if (gameState === 'playing') {
         gameLoopRef.current = requestAnimationFrame(gameLoop);
       }
@@ -673,10 +770,10 @@ export default function Game() {
       lastObjectSpeedIncreaseScoreRef.current = score;
     }
 
-    const expectedObjectsBase = 1 + Math.floor(score / 20);
+    const expectedObjectsBase = bossRef.current?.isActive ? 0 : (1 + Math.floor(score / 20));
     const effectiveObjectCount = objectsRef.current.length + pendingSpawnsRef.current.length + destroyedByBombCountRef.current;
 
-    if (effectiveObjectCount < expectedObjectsBase) {
+    if (!bossRef.current?.isActive && effectiveObjectCount < expectedObjectsBase) {
         const numToSpawn = expectedObjectsBase - effectiveObjectCount;
         for (let i = 0; i < numToSpawn; i++) {
             addPendingSpawn(canvas, score, pendingSpawnsRef.current);
@@ -689,7 +786,7 @@ export default function Game() {
     }
 
     // Bomb spawning logic
-    const canSpawnBombConditions = bombCollectiblesRef.current.length === 0 && score !== lastBombSpawnScoreRef.current && score > 0;
+    const canSpawnBombConditions = !bossRef.current?.isActive && bombCollectiblesRef.current.length === 0 && score !== lastBombSpawnScoreRef.current && score > 0;
     let shouldSpawnThisBomb = false;
 
     if (score === BOMB_FIRST_SPAWN_SCORE) {
@@ -706,7 +803,7 @@ export default function Game() {
     }
 
     // Hourglass spawning logic
-    const canSpawnHourglassConditions = hourglassCollectiblesRef.current.length === 0 && score !== lastHourglassSpawnScoreRef.current && score > 0;
+    const canSpawnHourglassConditions = !bossRef.current?.isActive && hourglassCollectiblesRef.current.length === 0 && score !== lastHourglassSpawnScoreRef.current && score > 0;
     let shouldSpawnThisHourglass = false;
 
     if (score === HOURGLASS_FIRST_SPAWN_SCORE) {
@@ -727,6 +824,65 @@ export default function Game() {
       scoreIntervalRef.current = null;
     };
   }, [gameState, score, addPendingSpawn]);
+
+  // Boss trigger when reaching score 1000
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const now = Date.now();
+    if (!bossRef.current.isActive && score >= 1000 && levelRef.current === 1) {
+      // clear field and pending
+      objectsRef.current = [];
+      pendingSpawnsRef.current = [];
+      pendingShieldSpawnsRef.current = [];
+      bombCollectiblesRef.current = [];
+      hourglassCollectiblesRef.current = [];
+      // reset score speed to initial
+      currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
+      lastScoreAccelerationTimeRef.current = 0;
+      setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
+      // center boss
+      startBoss(bossRef.current, canvas.width / 2, canvas.height / 2, now);
+      bossActiveRef.current = true;
+    }
+  }, [score, gameState]);
+
+  // Boss progression and cleanup
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const tick = () => {
+      const now = Date.now();
+      if (bossRef.current.isActive) {
+        updateBoss(
+          bossRef.current,
+          now,
+          objectsRef.current,
+          (x, y, dx, dy, speed, color) => ({ id: 'boss-' + Date.now() + Math.random(), x, y, dx, dy, speed, color, size: OBJECT_SIZE, type: 'red', isBossProjectile: true }),
+          mousePos,
+          canvas
+        );
+        // destroy boss projectiles on wall hit
+        objectsRef.current = objectsRef.current.filter(o => {
+          if (!o.isBossProjectile) return true;
+          const hitWall = (o.x - o.size < 0) || (o.x + o.size > canvas.width) || (o.y - o.size < 0) || (o.y + o.size > canvas.height);
+          return !hitWall;
+        });
+      } else if (bossActiveRef.current) {
+        // Boss just finished → Level 2
+        bossActiveRef.current = false;
+        levelRef.current = 2;
+        currentScoreIntervalMsRef.current = Math.max(MIN_SCORE_INTERVAL, INITIAL_SCORE_INTERVAL / 2);
+        setDisplayedScoreSpeed(1000 / currentScoreIntervalMsRef.current);
+        lastScoreAccelerationTimeRef.current = 0;
+        levelTextUntilRef.current = Date.now() + 2000;
+      }
+    };
+    const id = setInterval(tick, 16);
+    return () => clearInterval(id);
+  }, [gameState, mousePos]);
 
   if (gameState === 'menu') {
     return <GameMenu onStartGame={startGame} />;
