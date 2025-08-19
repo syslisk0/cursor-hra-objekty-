@@ -8,7 +8,8 @@ import { drawEnemy } from './EnemyDraw';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { updateBestScoreIfHigher, getUser, addCoins } from '../services/userService';
-import { getSkinColor } from './skins';
+import { getSkinColor, SKINS } from './skins';
+import { drawWatermelon, WATERMELON_SEED } from './skinRenderers';
 import {
   GameObject,
   PendingSpawn,
@@ -100,11 +101,14 @@ export default function Game() {
   const destroyedByBombCountRef = useRef<number>(0);
   const bossRef = useRef<BossState>(createInitialBossState());
   const bossActiveRef = useRef<boolean>(false);
+  const bossSpawnScheduledRef = useRef<boolean>(false);
   const levelRef = useRef<number>(1);
   const levelTextUntilRef = useRef<number>(0);
   const globalPauseUntilRef = useRef<number>(0);
   const bossTextUntilRef = useRef<number>(0);
-  const bossPendingStartAtRef = useRef<number>(0);
+  const level2InitialSpawnPendingRef = useRef<boolean>(false);
+  const spaceStarsSeedRef = useRef<number>(Math.random());
+  const levelStartScoreRef = useRef<number>(0);
 
   const [gameState, setGameState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
@@ -135,6 +139,8 @@ export default function Game() {
   const [selectedSkinId, setSelectedSkinId] = useState<string>('green');
   const [coinsEarned, setCoinsEarned] = useState<number>(0);
   const coinsAwardedRef = useRef<boolean>(false);
+  const skinSpriteCacheRef = useRef<Record<string, HTMLImageElement | null | 'loading'>>({});
+  const watermelonSeedsSpecRef = useRef<Array<{ radial: number; angle: number; rot: number }>>([]);
 
   useEffect(() => {
     const compute = () => setIsPortrait(typeof window !== 'undefined' && window.innerHeight >= window.innerWidth);
@@ -180,6 +186,8 @@ export default function Game() {
     lastBombSpawnScoreRef.current = 0;
     lastHourglassSpawnScoreRef.current = 0;
     destroyedByBombCountRef.current = 0;
+    levelRef.current = 1;
+    levelStartScoreRef.current = 0;
     setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
     setDisplayedRedObjectSpeed(INITIAL_RED_OBJECT_SPEED);
     setDisplayedYellowObjectSpeed(INITIAL_RED_OBJECT_SPEED / 2);
@@ -251,6 +259,19 @@ export default function Game() {
           const sid = rec?.selectedSkinId || 'green';
           setSelectedSkinId(sid);
           setPlayerColor(getSkinColor(sid));
+          // pre-load sprite if available for ball skins
+          const skinDef = SKINS.find(s => s.id === sid);
+          const ballIds = new Set(['football', 'basketball', 'tennis', 'golf', 'volleyball']);
+          if (skinDef?.spriteUrl && ballIds.has(skinDef.id)) {
+            if (!skinSpriteCacheRef.current[skinDef.id]) {
+              skinSpriteCacheRef.current[skinDef.id] = 'loading';
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => { skinSpriteCacheRef.current[skinDef.id] = img; };
+              img.onerror = () => { skinSpriteCacheRef.current[skinDef.id] = null; };
+              img.src = skinDef.spriteUrl;
+            }
+          }
         } catch (_) {
           /* ignore */
         }
@@ -367,7 +388,21 @@ export default function Game() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
       // Draw player ball with optional skin effects
-      if (selectedSkinId === 'diamond') {
+      // Use sprite for these skins to match shop exactly
+      const spriteSkins = new Set(['football', 'basketball', 'volleyball', 'diamond']);
+      const selectedSkinDef = SKINS.find(s => s.id === selectedSkinId);
+      const spriteCandidate = (selectedSkinDef && spriteSkins.has(selectedSkinDef.id)) ? skinSpriteCacheRef.current[selectedSkinDef.id] : undefined;
+      if (spriteCandidate && spriteCandidate !== 'loading') {
+        const img = spriteCandidate as HTMLImageElement | null;
+        if (img) {
+          const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+          ctx.save();
+          ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(img, cx - r, cy - r, r * 2, r * 2);
+          ctx.restore();
+        }
+      } else if (selectedSkinId === 'diamond') {
         ctx.save();
         // Draw a cut-diamond shape: wide top, triangular bottom tip
         const cx = mousePos.x;
@@ -418,6 +453,189 @@ export default function Game() {
         ctx.lineTo(cx, tipY);
         ctx.stroke();
         ctx.restore();
+      } else if (selectedSkinId === 'skull') {
+        // Skull silhouette (non-circular), similar to shop icon
+        const cx = mousePos.x;
+        const cy = mousePos.y;
+        const r = PLAYER_RADIUS;
+        // head shape
+        ctx.fillStyle = '#EEEEEE';
+        ctx.strokeStyle = '#111111';
+        ctx.lineWidth = Math.max(1, r * 0.08);
+        ctx.beginPath();
+        // Rounded cranium
+        ctx.moveTo(cx - r * 0.7, cy - r * 0.2);
+        ctx.quadraticCurveTo(cx - r * 0.7, cy - r * 0.9, cx, cy - r * 0.95);
+        ctx.quadraticCurveTo(cx + r * 0.7, cy - r * 0.9, cx + r * 0.7, cy - r * 0.2);
+        // Cheeks into jaw
+        ctx.quadraticCurveTo(cx + r * 0.72, cy + r * 0.2, cx + r * 0.45, cy + r * 0.35);
+        ctx.lineTo(cx - r * 0.45, cy + r * 0.35);
+        ctx.quadraticCurveTo(cx - r * 0.72, cy + r * 0.2, cx - r * 0.7, cy - r * 0.2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // eyes
+        ctx.fillStyle = '#000000';
+        ctx.beginPath(); ctx.arc(cx - r * 0.32, cy - r * 0.1, r * 0.2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + r * 0.32, cy - r * 0.1, r * 0.2, 0, Math.PI * 2); ctx.fill();
+        // nose (inverted triangle)
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + r * 0.05);
+        ctx.lineTo(cx + r * 0.14, cy + r * 0.28);
+        ctx.lineTo(cx - r * 0.14, cy + r * 0.28);
+        ctx.closePath();
+        ctx.fill();
+        // teeth panel
+        ctx.fillStyle = '#F5F5F5';
+        ctx.strokeStyle = '#111111';
+        const tw = r * 0.9;
+        const th = r * 0.38;
+        ctx.fillRect(cx - tw / 2, cy + r * 0.35, tw, th);
+        ctx.strokeRect(cx - tw / 2, cy + r * 0.35, tw, th);
+        // vertical tooth lines
+        ctx.beginPath();
+        for (let i = -3; i <= 3; i++) {
+          const x = cx + (i * tw) / 8;
+          ctx.moveTo(x, cy + r * 0.35);
+          ctx.lineTo(x, cy + r * 0.35 + th);
+        }
+        ctx.stroke();
+      } else if (selectedSkinId === 'football') {
+        // Soccer ball: white base with central black pentagon and surrounding patches + seams
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        // base
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#D0D0D0'; ctx.lineWidth = Math.max(1, r * 0.06); ctx.stroke();
+        // draw pentagon helper
+        const drawPentagon = (ax: number, ay: number, radius: number, rotation = -Math.PI / 2) => {
+          ctx.beginPath();
+          for (let i = 0; i < 5; i++) {
+            const ang = rotation + (i * 2 * Math.PI) / 5;
+            const x = ax + Math.cos(ang) * radius;
+            const y = ay + Math.sin(ang) * radius;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fill();
+        };
+        // central black pentagon
+        ctx.fillStyle = '#000000';
+        drawPentagon(cx, cy, r * 0.36);
+        // ring of 5 surrounding black pentagons
+        const ringRadius = r * 0.72;
+        const smallPentR = r * 0.18;
+        for (let i = 0; i < 5; i++) {
+          const ang = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+          const px = cx + Math.cos(ang) * ringRadius * 0.6;
+          const py = cy + Math.sin(ang) * ringRadius * 0.6;
+          ctx.fillStyle = '#000000';
+          drawPentagon(px, py, smallPentR, ang);
+        }
+        // seams: subtle gray arcs to mimic panel edges
+        ctx.strokeStyle = '#BDBDBD';
+        ctx.lineWidth = Math.max(1, r * 0.08);
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * 0.35, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (selectedSkinId === 'basketball') {
+        // Basketball: orange base with black seams
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        ctx.fillStyle = '#D35400';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#000000'; ctx.lineWidth = Math.max(1, r * 0.12);
+        // vertical & horizontal
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.02, 0, 2 * Math.PI); ctx.stroke(); // cap line width
+        ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
+        // side curves
+        ctx.beginPath(); ctx.arc(cx - r * 0.6, cy, r * 0.9, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx + r * 0.6, cy, r * 0.9, Math.PI / 2, -Math.PI / 2, true); ctx.stroke();
+      } else if (selectedSkinId === 'tennis') {
+        // Tennis ball: neon yellow with emphasized white seams
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        ctx.fillStyle = '#C8FF00';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = Math.max(1, r * 0.24);
+        ctx.beginPath(); ctx.arc(cx - r * 0.35, cy, r * 0.9, -Math.PI / 3, Math.PI / 3); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx + r * 0.35, cy, r * 0.9, (2 * Math.PI) / 3, (4 * Math.PI) / 3); ctx.stroke();
+        // subtle inner highlight
+        const grad = ctx.createRadialGradient(cx, cy - r * 0.4, r * 0.1, cx, cy, r);
+        grad.addColorStop(0, 'rgba(255,255,255,0.25)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      } else if (selectedSkinId === 'golf') {
+        // Golf ball: realistic white with dimples
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        // base
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        // dimples in staggered grid
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        const step = r * 0.32;
+        const radiusInner = r * 0.86;
+        for (let row = -2.5; row <= 2.5; row++) {
+          const y = cy + row * step * 0.65;
+          const offset = (Math.abs(row) % 2) * (step * 0.5);
+          for (let col = -3; col <= 3; col++) {
+            const x = cx + col * step + offset;
+            const dx = x - cx; const dy = y - cy;
+            if (dx * dx + dy * dy < radiusInner * radiusInner) {
+              ctx.beginPath(); ctx.arc(x, y, Math.max(1, r * 0.06), 0, Math.PI * 2); ctx.fill();
+            }
+          }
+        }
+        // soft shading
+        const lg = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.5, r * 0.1, cx, cy, r);
+        lg.addColorStop(0, 'rgba(0,0,0,0.08)');
+        lg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+      } else if (selectedSkinId === 'volleyball') {
+        // Volleyball: white with blue/yellow bands
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+        ctx.lineWidth = Math.max(1, r * 0.18);
+        // blue arc
+        ctx.strokeStyle = '#2E86C1';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.7, Math.PI * 0.1, Math.PI * 1.2); ctx.stroke();
+        // yellow arc
+        ctx.strokeStyle = '#F1C40F';
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, -Math.PI * 0.2, Math.PI * 0.9); ctx.stroke();
+        // seams
+        ctx.strokeStyle = '#CCCCCC';
+        ctx.lineWidth = Math.max(1, r * 0.08);
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.95, Math.PI * 0.2, Math.PI * 1.3); ctx.stroke();
+      } else if (selectedSkinId === 'watermelon') {
+        drawWatermelon(ctx, mousePos.x, mousePos.y, PLAYER_RADIUS, WATERMELON_SEED);
+      } else if (selectedSkinId === 'space') {
+        // Space skin: purple rim, dark-space center, and white/yellow stars
+        const cx = mousePos.x; const cy = mousePos.y; const r = PLAYER_RADIUS;
+        // purple border
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#5B2C6F';
+        ctx.fill();
+        // inner dark space
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+        ctx.fillStyle = '#0B0F33';
+        ctx.fill();
+        // stars (deterministic positions from seed)
+        const seed = spaceStarsSeedRef.current;
+        let s = Math.floor(seed * 1e9) || 1234567;
+        const rand = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 0xffffffff; };
+        const stars = 18;
+        for (let i = 0; i < stars; i++) {
+          const ang = rand() * Math.PI * 2;
+          const rad = (rand() * 0.8 + 0.05) * r * 0.85;
+          const x = cx + Math.cos(ang) * rad;
+          const y = cy + Math.sin(ang) * rad;
+          const size = Math.max(1, r * (rand() * 0.06 + 0.03));
+          ctx.fillStyle = rand() < 0.35 ? '#F1C40F' : '#FFFFFF';
+          ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill();
+        }
       } else {
         ctx.fillStyle = playerColor;
         ctx.beginPath();
@@ -590,6 +808,11 @@ export default function Game() {
       });
       if(!inGlobalPause && newObjectsFromPending.length > 0) {
         objectsRef.current.push(...newObjectsFromPending);
+      }
+      // If Level 2 initial spawn was requested, mark done after at least one object exists
+      if (levelRef.current === 2 && level2InitialSpawnPendingRef.current) {
+        const totalNow = objectsRef.current.length + pendingSpawnsRef.current.length;
+        if (totalNow >= 1) level2InitialSpawnPendingRef.current = false;
       }
       for (let i = 0; i < objectsRef.current.length; i++) {
         if (objectsRef.current[i].type === 'yellow') {
@@ -838,13 +1061,22 @@ export default function Game() {
       lastObjectSpeedIncreaseScoreRef.current = score;
     }
 
-    const expectedObjectsBase = bossRef.current?.isActive ? 0 : (1 + Math.floor(score / 20));
+    // Base expected objects scaled from the current level's start score
+    const levelRelativeScore = Math.max(0, score - levelStartScoreRef.current);
+    // Suppress spawns during BOSS banner (pre-spawn) and while boss is active
+    let expectedObjectsBase = (bossRef.current?.isActive || bossSpawnScheduledRef.current) ? 0 : (1 + Math.floor(levelRelativeScore / 20));
+    // At the very start of Level 2, allow exactly one spawn
+    if (levelRef.current === 2 && level2InitialSpawnPendingRef.current) {
+      expectedObjectsBase = 1;
+    }
     const effectiveObjectCount = objectsRef.current.length + pendingSpawnsRef.current.length + destroyedByBombCountRef.current;
 
     if (!bossRef.current?.isActive && effectiveObjectCount < expectedObjectsBase) {
         const numToSpawn = expectedObjectsBase - effectiveObjectCount;
-        for (let i = 0; i < numToSpawn; i++) {
-            addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+        // If capped to 1 for level 2 start, only enqueue one
+        const spawnCount = (levelRef.current === 2 && level2InitialSpawnPendingRef.current) ? Math.min(1, numToSpawn) : numToSpawn;
+        for (let i = 0; i < spawnCount; i++) {
+          addPendingSpawn(canvas, score, pendingSpawnsRef.current);
         }
     }
 
@@ -854,7 +1086,7 @@ export default function Game() {
     }
 
     // Bomb spawning logic
-    const canSpawnBombConditions = !bossRef.current?.isActive && bombCollectiblesRef.current.length === 0 && score !== lastBombSpawnScoreRef.current && score > 0;
+    const canSpawnBombConditions = !bossRef.current?.isActive && !bossSpawnScheduledRef.current && bombCollectiblesRef.current.length === 0 && score !== lastBombSpawnScoreRef.current && score > 0;
     let shouldSpawnThisBomb = false;
 
     if (score === BOMB_FIRST_SPAWN_SCORE) {
@@ -871,7 +1103,7 @@ export default function Game() {
     }
 
     // Hourglass spawning logic
-    const canSpawnHourglassConditions = !bossRef.current?.isActive && hourglassCollectiblesRef.current.length === 0 && score !== lastHourglassSpawnScoreRef.current && score > 0;
+    const canSpawnHourglassConditions = !bossRef.current?.isActive && !bossSpawnScheduledRef.current && hourglassCollectiblesRef.current.length === 0 && score !== lastHourglassSpawnScoreRef.current && score > 0;
     let shouldSpawnThisHourglass = false;
 
     if (score === HOURGLASS_FIRST_SPAWN_SCORE) {
@@ -893,26 +1125,41 @@ export default function Game() {
     };
   }, [gameState, score, addPendingSpawn]);
 
-  // Boss trigger when reaching score 1000 (delay actual spawn until banner ends)
+  // Boss trigger when reaching score 1000
   useEffect(() => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const now = Date.now();
-    if (!bossRef.current.isActive && score >= 1000 && levelRef.current === 1) {
-      // clear field and pending
+    if (!bossRef.current.isActive && !bossSpawnScheduledRef.current && score >= 1000 && levelRef.current === 1) {
+      // show BOSS banner for 3 seconds first
+      bossTextUntilRef.current = now + 3000;
+      bossSpawnScheduledRef.current = true;
+      // Immediately clear all objects and pending while banner shows
       objectsRef.current = [];
       pendingSpawnsRef.current = [];
       pendingShieldSpawnsRef.current = [];
       bombCollectiblesRef.current = [];
       hourglassCollectiblesRef.current = [];
-      // reset score speed to initial
-      currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
-      lastScoreAccelerationTimeRef.current = 0;
-      setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
-      // show BOSS banner for 3 seconds
-      bossTextUntilRef.current = now + 3000;
-      bossPendingStartAtRef.current = bossTextUntilRef.current;
+      // after banner disappears, then spawn the boss
+      setTimeout(() => {
+        const canvasNow = canvasRef.current;
+        if (!canvasNow) return;
+        if (bossRef.current.isActive || levelRef.current !== 1) return;
+        // clear field and pending
+        objectsRef.current = [];
+        pendingSpawnsRef.current = [];
+        pendingShieldSpawnsRef.current = [];
+        bombCollectiblesRef.current = [];
+        hourglassCollectiblesRef.current = [];
+        // reset score speed to initial
+        currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
+        lastScoreAccelerationTimeRef.current = 0;
+        setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
+        // center boss
+        startBoss(bossRef.current, canvasNow.width / 2, canvasNow.height / 2, Date.now());
+        bossActiveRef.current = true;
+      }, 3000);
     }
   }, [score, gameState]);
 
@@ -938,15 +1185,13 @@ export default function Game() {
           const hitWall = (o.x - o.size < 0) || (o.x + o.size > canvas.width) || (o.y - o.size < 0) || (o.y + o.size > canvas.height);
           return !hitWall;
         });
-      } else if (bossPendingStartAtRef.current > 0 && now >= bossPendingStartAtRef.current && levelRef.current === 1) {
-        // spawn boss now after banner
-        startBoss(bossRef.current, canvas.width / 2, canvas.height / 2, now);
-        bossActiveRef.current = true;
-        bossPendingStartAtRef.current = 0;
       } else if (bossActiveRef.current) {
         // Boss just finished → Level 2
         bossActiveRef.current = false;
         levelRef.current = 2;
+        level2InitialSpawnPendingRef.current = true;
+        bossSpawnScheduledRef.current = false;
+        levelStartScoreRef.current = score; // reset scaling so Level 2 starts like a new game
         // Pause game for 3 seconds and show banner
         levelTextUntilRef.current = Date.now() + 3000;
         globalPauseUntilRef.current = levelTextUntilRef.current;

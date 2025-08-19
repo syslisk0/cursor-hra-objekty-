@@ -6,7 +6,8 @@ export type Skin = {
   name: string;
   color: string;
   price: number; // v coinech
-  rarity: 'rare' | 'epic' | 'legendary';
+  rarity: 'rare' | 'super_rare' | 'epic' | 'legendary';
+  spriteUrl?: string; // volitelný vzdálený sprite pro zobrazení v obchodě
 };
 
 export const SKINS: Skin[] = [
@@ -15,16 +16,16 @@ export const SKINS: Skin[] = [
   { id: 'pink', name: 'Růžová kulička', color: '#FF66CC', price: 10, rarity: 'rare' },
   { id: 'white', name: 'Bílá kulička', color: '#FFFFFF', price: 10, rarity: 'rare' },
   { id: 'peach', name: 'Broskvová kulička', color: '#FFC1A1', price: 10, rarity: 'rare' },
+  { id: 'football', name: 'Fotbalový', color: '#1E7F3F', price: 12, rarity: 'super_rare', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/26BD.svg' },
+  { id: 'basketball', name: 'Basketbalový', color: '#D35400', price: 12, rarity: 'super_rare', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F3C0.svg' },
+  { id: 'tennis', name: 'Tenisový', color: '#C8FF00', price: 12, rarity: 'super_rare', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F3BE.svg' },
+  { id: 'golf', name: 'Golfový', color: '#A8E6A2', price: 12, rarity: 'super_rare', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/26F3.svg' },
+  { id: 'volleyball', name: 'Volejbalový', color: '#F1C40F', price: 12, rarity: 'super_rare', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F3D0.svg' },
   { id: 'gold', name: 'Zlatá kulička', color: '#FFD000', price: 15, rarity: 'epic' },
-  { id: 'diamond', name: 'Diamant', color: '#6EC6FF', price: 50, rarity: 'legendary' },
-  { id: 'skull', name: 'Lebka', color: '#EEEEEE', price: 25, rarity: 'epic' },
-  { id: 'space', name: 'Vesmírná kulička', color: '#0B0F33', price: 60, rarity: 'legendary' },
-  { id: 'watermelon', name: 'Meloun', color: '#FF6699', price: 20, rarity: 'epic' },
-  { id: 'football', name: 'Fotbalový míč', color: '#FFFFFF', price: 12, rarity: 'rare' },
-  { id: 'basketball', name: 'Basketbalový míč', color: '#F28C28', price: 12, rarity: 'rare' },
-  { id: 'tennis', name: 'Tenisový míček', color: '#CCFF00', price: 12, rarity: 'rare' },
-  { id: 'golf', name: 'Golfový míček', color: '#F8F8F8', price: 12, rarity: 'rare' },
-  { id: 'volleyball', name: 'Volejbalový míč', color: '#FFFFFF', price: 12, rarity: 'rare' },
+  { id: 'diamond', name: 'Diamant', color: '#6EC6FF', price: 50, rarity: 'legendary', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F48E.svg' },
+  { id: 'skull', name: 'Lebka', color: '#EEEEEE', price: 25, rarity: 'epic', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F480.svg' },
+  { id: 'space', name: 'Vesmírná kulička', color: '#0B0F33', price: 60, rarity: 'legendary', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F30C.svg' },
+  { id: 'watermelon', name: 'Meloun', color: '#FF6699', price: 20, rarity: 'epic', spriteUrl: 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/svg/1F349.svg' },
 ];
 
 export function getSkinColor(skinId: SkinId | string | undefined | null): string {

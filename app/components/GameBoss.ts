@@ -7,6 +7,7 @@ export type BossPhase =
   | 'intro'
   | 'wave_attacks'
   | 'charge_attacks'
+  | 'return_to_center'
   | 'final_burst'
   | 'done';
 
@@ -128,7 +129,7 @@ export function updateBoss(
     case 'charge_attacks': {
       // boss charges itself towards player's last position with speed 7, direction fixed until wall
       if (state.chargeCount >= 4) {
-        state.phase = 'final_burst';
+        state.phase = 'return_to_center';
         return state.phase;
       }
       if (state.chargeWaiting) {
@@ -143,7 +144,7 @@ export function updateBoss(
         const mag = Math.max(1e-6, Math.hypot(playerPos.x - state.centerX, playerPos.y - state.centerY));
         state.dx = (playerPos.x - state.centerX) / mag;
         state.dy = (playerPos.y - state.centerY) / mag;
-        state.speed = 7;
+        state.speed = 14;
         state.chargeActive = true;
       } else {
         // move boss forward smoothly (use fractional step)
@@ -162,6 +163,24 @@ export function updateBoss(
           state.chargeCount += 1;
         }
       }
+      return state.phase;
+    }
+    case 'return_to_center': {
+      // Smoothly move boss back to canvas center before the final burst
+      const targetX = canvas.width / 2;
+      const targetY = canvas.height / 2;
+      const dx = targetX - state.centerX;
+      const dy = targetY - state.centerY;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) {
+        state.centerX = targetX;
+        state.centerY = targetY;
+        state.phase = 'final_burst';
+        return state.phase;
+      }
+      const step = Math.min(3.5, Math.max(1.5, dist * 0.05));
+      state.centerX += (dx / dist) * step;
+      state.centerY += (dy / dist) * step;
       return state.phase;
     }
     case 'final_burst': {

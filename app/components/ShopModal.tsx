@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { SKINS } from './skins';
+import { SKINS, type Skin } from './skins';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -76,110 +76,92 @@ export default function ShopModal({ onClose }: ShopModalProps) {
         <>
           <div className="mb-4">Mince: <span className="font-semibold">{coins}</span></div>
           {error && <div className="mb-3 text-red-400">{error}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {SKINS.map(skin => {
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            {[...SKINS]
+              .sort((a: Skin, b: Skin) => {
+                const order: Record<Skin['rarity'], number> = { rare: 0, super_rare: 1, epic: 2, legendary: 3 };
+                if (order[a.rarity] !== order[b.rarity]) return order[a.rarity] - order[b.rarity];
+                return a.price - b.price;
+              })
+              .map(skin => {
               const owned = ownedSkins.includes(skin.id);
               const selected = selectedSkinId === skin.id;
               return (
                 <div key={skin.id} className={`p-4 rounded-lg bg-gray-700/50 border ${selected ? 'border-green-400' : 'border-white/10'}`}>
                   <div className="flex items-center gap-3">
-                    {skin.id === 'diamond' ? (
-                      <div className="w-10 h-10 relative">
-                        <svg viewBox="0 0 100 120" className="w-10 h-10">
-                          <defs>
-                            <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#E3F6FF"/>
-                              <stop offset="45%" stopColor={skin.color}/>
-                              <stop offset="100%" stopColor="#198CFF"/>
-                            </linearGradient>
-                          </defs>
-                          <path d="M10,10 L90,10 L80,40 L20,40 Z M20,40 L80,40 L50,110 Z" fill="url(#g)" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
-                        </svg>
-                      </div>
-                    ) : skin.id === 'space' ? (
-                      <div className="w-10 h-10 rounded-full relative" style={{ backgroundColor: skin.color, boxShadow: '0 0 8px 4px rgba(138,43,226,0.6)' }}>
+                    {/* Custom previews for certain skins to match in-game look */}
+                    {skin.id === 'space' ? (
+                      <div className="w-10 h-10 rounded-full relative overflow-hidden" style={{ backgroundColor: '#5B2C6F' }}>
+                        <div className="absolute inset-1 rounded-full" style={{ backgroundColor: '#0B0F33' }} />
                         {/* stars */}
                         <div className="absolute inset-0">
-                          {[...Array(12)].map((_, i) => (
-                            <div key={i} className="absolute rounded-full" style={{
-                              width: i % 5 === 0 ? 2 : 1,
-                              height: i % 5 === 0 ? 2 : 1,
-                              backgroundColor: i % 3 === 0 ? '#FFD700' : '#FFFFFF',
-                              left: `${(i * 17) % 36 + 2}px`,
-                              top: `${(i * 29) % 36 + 2}px`
-                            }} />
-                          ))}
+                          <div className="absolute w-1 h-1 bg-white rounded-full" style={{ left: '20%', top: '30%' }} />
+                          <div className="absolute w-1 h-1 bg-yellow-300 rounded-full" style={{ left: '45%', top: '20%' }} />
+                          <div className="absolute w-1 h-1 bg-white rounded-full" style={{ left: '65%', top: '55%' }} />
+                          <div className="absolute w-1 h-1 bg-yellow-300 rounded-full" style={{ left: '30%', top: '70%' }} />
+                          <div className="absolute w-1 h-1 bg-white rounded-full" style={{ left: '70%', top: '35%' }} />
                         </div>
                       </div>
-                    ) : skin.id === 'skull' ? (
-                      <div className="w-10 h-10 relative">
-                        <svg viewBox="0 0 100 120" className="w-10 h-10">
-                          {/* Lebka silueta */}
-                          <path d="M50,10 C72,10 90,28 90,50 C90,68 78,75 78,85 L78,95 L22,95 L22,85 C22,75 10,68 10,50 C10,28 28,10 50,10 Z" fill="#EEEEEE" stroke="#111" strokeWidth="2"/>
-                          {/* Oční důlky */}
-                          <circle cx="35" cy="50" r="8" fill="#000" />
-                          <circle cx="65" cy="50" r="8" fill="#000" />
-                          {/* Nos (obrácený trojúhelník) */}
-                          <path d="M50,58 L56,70 L44,70 Z" fill="#000" />
-                          {/* Zuby */}
-                          <rect x="30" y="88" width="40" height="10" fill="#F5F5F5" stroke="#111" strokeWidth="1.5" />
-                          <path d="M35,88 L35,98 M40,88 L40,98 M45,88 L45,98 M50,88 L50,98 M55,88 L55,98 M60,88 L60,98 M65,88 L65,98" stroke="#111" strokeWidth="1" />
-                        </svg>
+                    ) : skin.id === 'golf' ? (
+                      <div className="w-10 h-10 rounded-full relative overflow-hidden flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full relative overflow-hidden bg-white">
+                          {/* dimples grid */}
+                          <div className="absolute inset-0">
+                            {Array.from({ length: 4 }).map((_, ri) => (
+                              <div key={ri} className="absolute left-1 right-1 h-[2px] opacity-20 bg-black" style={{ top: `${(ri + 1) * 18}%` }} />
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     ) : skin.id === 'watermelon' ? (
-                      <div className="w-10 h-10 relative rounded-full overflow-hidden" style={{ background: 'linear-gradient(90deg, #1D7A3B 0%, #2FAA52 50%, #1D7A3B 100%)', border: '3px solid #1D7A3B' }}>
-                        <div className="absolute inset-[3px] rounded-full" style={{ backgroundColor: '#FF6F91' }} />
-                        {/* seeds clipped within pink area */}
-                        <svg viewBox="0 0 40 40" className="absolute inset-[3px] rounded-full">
-                          <defs>
-                            <clipPath id="clip-pink">
-                              <circle cx="20" cy="20" r="20" />
-                            </clipPath>
-                          </defs>
-                          <g clipPath="url(#clip-pink)">
-                            {Array.from({ length: 10 }).map((_, i) => (
-                              <ellipse key={i} cx={(6 + (i % 5) * 6)} cy={(8 + Math.floor(i / 5) * 10)} rx="1" ry="2" fill="#000" transform="rotate(20, 20, 20)" />
-                            ))}
-                          </g>
-                        </svg>
+                      <div className="w-10 h-10 rounded-full relative overflow-hidden flex items-center justify-center">
+                        <canvas
+                          className="w-9 h-9"
+                          ref={(el) => {
+                            if (!el) return;
+                            const size = 64;
+                            el.width = size; el.height = size;
+                            const ctx = el.getContext('2d');
+                            if (!ctx) return;
+                            // dynamic import to avoid SSR issues
+                            // Simple local re-implementation to avoid circular import
+                            const draw = (c: CanvasRenderingContext2D) => {
+                              const cx = size / 2; const cy = size / 2; const r = size / 2 - 1;
+                              // Basic renderer matching in-game look (approximate, same algorithm should be used ideally)
+                              // Rind gradient
+                              const rindGrad = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.2, cx, cy, r);
+                              rindGrad.addColorStop(0, '#3DDB84');
+                              rindGrad.addColorStop(0.6, '#2ECC71');
+                              rindGrad.addColorStop(1, '#1E8449');
+                              c.fillStyle = rindGrad;
+                              c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+                              // Stripes
+                              c.save(); c.strokeStyle = 'rgba(0,80,0,0.45)';
+                              for (let i = 0; i < 9; i++) { c.lineWidth = Math.max(1, r * (0.06 + (i % 2) * 0.03)); const ang = (i / 9) * Math.PI * 2 + 0.2; c.beginPath(); c.arc(cx, cy, r * 0.92, ang - 0.18, ang + 0.18); c.stroke(); }
+                              c.restore();
+                              // Pith
+                              c.fillStyle = '#F7F9F9'; c.beginPath(); c.arc(cx, cy, r * 0.86, 0, Math.PI * 2); c.fill();
+                              // Flesh
+                              const fleshGrad = c.createRadialGradient(cx - r * 0.2, cy - r * 0.2, r * 0.1, cx, cy, r * 0.82);
+                              fleshGrad.addColorStop(0, '#FF758C'); fleshGrad.addColorStop(1, '#FF5E7A');
+                              c.fillStyle = fleshGrad; c.beginPath(); c.arc(cx, cy, r * 0.8, 0, Math.PI * 2); c.fill();
+                              // Seeds deterministic
+                              let s = 13371337 >>> 0; const rnd = () => { s = (1664525 * s + 1013904223) >>> 0; return s / 0xffffffff; };
+                              for (let i = 0; i < 16; i++) {
+                                const minRad = 0.12; const maxRad = 0.8 - 0.08; const radial = minRad + rnd() * (maxRad - minRad); const angle = rnd() * Math.PI * 2; const rot = rnd() * Math.PI * 2; const dist = r * radial; const sx = cx + Math.cos(angle) * dist; const sy = cy + Math.sin(angle) * dist; const sw = Math.max(1, r * 0.11); const sh = Math.max(1, r * 0.2);
+                                c.save(); c.translate(sx, sy); c.rotate(rot); c.fillStyle = '#2C3E50'; c.beginPath(); c.ellipse(0, 0, sw * 0.5, sh * 0.5, 0, 0, Math.PI * 2); c.fill(); c.fillStyle = 'rgba(255,255,255,0.65)'; c.beginPath(); c.ellipse(-sw * 0.15, -sh * 0.15, sw * 0.12, sh * 0.12, 0, 0, Math.PI * 2); c.fill(); c.restore();
+                              }
+                              // Gloss
+                              const gloss = c.createRadialGradient(cx - r * 0.5, cy - r * 0.6, 0, cx - r * 0.5, cy - r * 0.6, r);
+                              gloss.addColorStop(0, 'rgba(255,255,255,0.25)'); gloss.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = gloss; c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+                            };
+                            draw(ctx);
+                          }}
+                        />
                       </div>
-                    ) : skin.id === 'football' ? (
-                      <div className="w-10 h-10 rounded-full bg-white relative">
-                        {[...Array(5)].map((_, i) => (
-                          <div key={i} className="absolute" style={{
-                            width: 8, height: 8, backgroundColor: '#111',
-                            clipPath: 'polygon(50% 0%, 95% 35%, 77% 90%, 23% 90%, 5% 35%)',
-                            left: `${6 + i*4}px`, top: `${6 + (i%2)*6}px`
-                          }} />
-                        ))}
-                      </div>
-                    ) : skin.id === 'basketball' ? (
-                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: '#F28C28', boxShadow: 'inset 0 0 0 2px #7A4A0E' }}>
-                        <svg viewBox="0 0 40 40" className="w-10 h-10">
-                          <path d="M0 20 H40 M20 0 V40 M6 6 C20 20, 20 20, 34 34 M34 6 C20 20, 20 20, 6 34" stroke="#7A4A0E" strokeWidth="2" fill="none" />
-                        </svg>
-                      </div>
-                    ) : skin.id === 'tennis' ? (
-                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: '#CCFF00' }}>
-                        <svg viewBox="0 0 40 40" className="w-10 h-10">
-                          <path d="M0 14 C16 14, 24 26, 40 26 M0 26 C16 26, 24 14, 40 14" stroke="#FFFFFF" strokeWidth="2" fill="none" />
-                        </svg>
-                      </div>
-                    ) : skin.id === 'golf' ? (
-                      <div className="w-10 h-10 rounded-full bg-white relative">
-                        {[...Array(10)].map((_, i) => (
-                          <div key={i} className="absolute rounded-full" style={{ width: 2, height: 2, backgroundColor: '#ddd', left: `${6 + (i%5)*6}px`, top: `${6 + Math.floor(i/5)*6}px` }} />
-                        ))}
-                      </div>
-                    ) : skin.id === 'volleyball' ? (
-                      <div className="w-10 h-10 rounded-full bg-white relative">
-                        <svg viewBox="0 0 40 40" className="w-10 h-10">
-                          <path d="M2 20 C2 10, 10 2, 20 2" stroke="#d1d5db" strokeWidth="2" fill="none" />
-                          <path d="M38 20 C38 10, 30 2, 20 2" stroke="#d1d5db" strokeWidth="2" fill="none" />
-                          <path d="M2 20 C2 30, 10 38, 20 38" stroke="#d1d5db" strokeWidth="2" fill="none" />
-                          <path d="M38 20 C38 30, 30 38, 20 38" stroke="#d1d5db" strokeWidth="2" fill="none" />
-                          <path d="M2 26 H38 M2 14 H38" stroke="#d1d5db" strokeWidth="2" />
-                        </svg>
+                    ) : skin.spriteUrl ? (
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                        <img src={skin.spriteUrl} alt={skin.name} className="w-full h-full object-contain" />
                       </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
@@ -190,6 +172,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                         {skin.rarity === 'legendary' && <span className="text-yellow-300">Legendární</span>}
                         {skin.rarity === 'epic' && <span className="text-purple-300">Epická</span>}
                         {skin.rarity === 'rare' && <span className="text-blue-300">Vzácná</span>}
+                        {skin.rarity === 'super_rare' && <span className="text-green-300">Super vzácná</span>}
                       </div>
                       <div className="text-sm text-gray-300">Cena: {skin.price} mincí</div>
                     </div>

@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import ScoreboardModal from '@/app/components/ScoreboardModal';
 import ShopModal from '@/app/components/ShopModal';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
 
-type CoinsState = { coins: number; uid: string | null };
+type CoinsState = { coins: number; uid: string | null; username?: string | null };
 
 interface GameMenuProps {
   onStartGame: () => void;
@@ -18,7 +18,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showShop, setShowShop] = useState(false);
-  const [coinsState, setCoinsState] = useState<CoinsState>({ coins: 0, uid: null });
+  const [coinsState, setCoinsState] = useState<CoinsState>({ coins: 0, uid: null, username: null });
 
   const toggleInfoModal = useCallback(() => {
     setShowInfoModal(prev => !prev);
@@ -41,10 +41,11 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
         unsubUser = onSnapshot(ref, (snap) => {
           const data = snap.data() as any;
           const coins = typeof data?.coins === 'number' ? data.coins : 0;
-          setCoinsState({ coins, uid: u.uid });
+          const username = typeof data?.username === 'string' ? data.username : null;
+          setCoinsState({ coins, uid: u.uid, username });
         });
       } else {
-        setCoinsState({ coins: 0, uid: null });
+        setCoinsState({ coins: 0, uid: null, username: null });
       }
     });
     return () => { if (unsubUser) unsubUser(); unsubAuth(); };
@@ -80,7 +81,20 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
         </button>
       </div>
       <div className="mb-8 text-white/90">Mince: <span className="font-semibold">{coinsState.coins}</span></div>
-      <p className="text-lg text-gray-400">made by syslisk0</p>
+      <div className="mt-2 flex flex-col items-center gap-1">
+        <p className="text-lg text-gray-400">made by syslisk0</p>
+        {coinsState.username && (
+          <p className="text-sm text-gray-300">Uživatel: <span className="font-semibold">{coinsState.username}</span></p>
+        )}
+        {coinsState.uid && (
+          <button
+            onClick={() => signOut(auth)}
+            className="mt-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+          >
+            Odhlásit se
+          </button>
+        )}
+      </div>
 
       {showInfoModal && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
