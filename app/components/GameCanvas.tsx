@@ -1,5 +1,8 @@
 'use client';
 import { useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 interface GameCanvasProps {
   score: number;
@@ -28,6 +31,7 @@ export default function GameCanvas({
   onTouchPosition,
   isPortrait
 }: GameCanvasProps) {
+  // Canvas je zaměřený na vykreslení hry; zobrazení mincí řeší menu a game over
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
     const originalTouchAction = document.body.style.touchAction;

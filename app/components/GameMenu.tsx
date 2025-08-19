@@ -1,7 +1,13 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import ScoreboardModal from '@/app/components/ScoreboardModal';
+import ShopModal from '@/app/components/ShopModal';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+
+type CoinsState = { coins: number; uid: string | null };
 
 interface GameMenuProps {
   onStartGame: () => void;
@@ -10,6 +16,8 @@ interface GameMenuProps {
 export default function GameMenu({ onStartGame }: GameMenuProps) {
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
+  const [showShop, setShowShop] = useState(false);
+  const [coinsState, setCoinsState] = useState<CoinsState>({ coins: 0, uid: null });
 
   const toggleInfoModal = useCallback(() => {
     setShowInfoModal(prev => !prev);
@@ -17,11 +25,34 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
   const toggleScoreboard = useCallback(() => {
     setShowScoreboard(prev => !prev);
   }, []);
+  const toggleShop = useCallback(() => {
+    setShowShop(prev => !prev);
+  }, []);
+
+  // Live odběr mincí přihlášeného uživatele
+  useEffect(() => {
+    let unsubUser: (() => void) | null = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      if (unsubUser) { unsubUser(); unsubUser = null; }
+      if (u) {
+        setCoinsState(cs => ({ ...cs, uid: u.uid }));
+        const ref = doc(db, 'users', u.uid);
+        unsubUser = onSnapshot(ref, (snap) => {
+          const data = snap.data() as any;
+          const coins = typeof data?.coins === 'number' ? data.coins : 0;
+          setCoinsState({ coins, uid: u.uid });
+        });
+      } else {
+        setCoinsState({ coins: 0, uid: null });
+      }
+    });
+    return () => { if (unsubUser) unsubUser(); unsubAuth(); };
+  }, []);
 
   return (
     <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
       <h1 className="text-3xl sm:text-5xl font-bold mb-8">Vyhýbej se Objektům!</h1>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-12 w-full max-w-md">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4 w-full max-w-md">
         <button
           onClick={onStartGame}
           className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-green-500 rounded-lg hover:bg-green-600 text-lg sm:text-2xl font-semibold transition-colors"
@@ -40,7 +71,14 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
         >
           Žebříček skóre
         </button>
+        <button
+          onClick={toggleShop}
+          className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-yellow-600 rounded-lg hover:bg-yellow-500 text-lg sm:text-2xl font-semibold transition-colors"
+        >
+          Obchod
+        </button>
       </div>
+      <div className="mb-8 text-white/90">Mince: <span className="font-semibold">{coinsState.coins}</span></div>
       <p className="text-lg text-gray-400">made by syslisk0</p>
 
       {showInfoModal && (
@@ -71,6 +109,14 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
 
       {showScoreboard && (
         <ScoreboardModal onClose={toggleScoreboard} />
+      )}
+
+      {showShop && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-2xl w-full">
+            <ShopModal onClose={toggleShop} />
+          </div>
+        </div>
       )}
     </div>
   );

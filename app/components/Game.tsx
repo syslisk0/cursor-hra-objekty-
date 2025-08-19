@@ -7,7 +7,8 @@ import GameOverScreen from './GameOverScreen';
 import { drawEnemy } from './EnemyDraw';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { updateBestScoreIfHigher } from '../services/userService';
+import { updateBestScoreIfHigher, getUser, addCoins } from '../services/userService';
+import { getSkinColor } from './skins';
 import {
   GameObject,
   PendingSpawn,
@@ -122,6 +123,9 @@ export default function Game() {
   const invulnerableUntilRef = useRef<number>(0);
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
+  const [playerColor, setPlayerColor] = useState<string>(PLAYER_DEFAULT_COLOR);
+  const [coinsEarned, setCoinsEarned] = useState<number>(0);
+  const coinsAwardedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const compute = () => setIsPortrait(typeof window !== 'undefined' && window.innerHeight >= window.innerWidth);
@@ -186,11 +190,51 @@ export default function Game() {
   }, []);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
       setCurrentUser(u ? { uid: u.uid, email: u.email } : null);
+      if (u) {
+        try {
+          const rec = await getUser(u.uid);
+          setPlayerColor(getSkinColor(rec?.selectedSkinId || 'green'));
+        } catch (_) {
+          setPlayerColor(PLAYER_DEFAULT_COLOR);
+        }
+      } else {
+        setPlayerColor(PLAYER_DEFAULT_COLOR);
+      }
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const refreshSkin = async () => {
+      if (currentUser) {
+        try {
+          const rec = await getUser(currentUser.uid);
+          setPlayerColor(getSkinColor(rec?.selectedSkinId || 'green'));
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    };
+    refreshSkin();
+  }, [gameState, currentUser]);
+
+  useEffect(() => {
+    if (gameState === 'gameOver') {
+      const earned = Math.floor(score / 100);
+      setCoinsEarned(earned);
+      if (!coinsAwardedRef.current) {
+        coinsAwardedRef.current = true;
+        if (currentUser && earned > 0) {
+          addCoins(currentUser.uid, earned).catch(() => {});
+        }
+      }
+    } else {
+      coinsAwardedRef.current = false;
+      setCoinsEarned(0);
+    }
+  }, [gameState, score, currentUser]);
 
   const submitScore = useCallback(async (finalScore: number) => {
     if (!currentUser) return { isRecord: false, best: finalScore };
@@ -259,7 +303,7 @@ export default function Game() {
         ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      ctx.fillStyle = PLAYER_DEFAULT_COLOR;
+      ctx.fillStyle = playerColor;
       ctx.beginPath();
       ctx.arc(mousePos.x, mousePos.y, PLAYER_RADIUS, 0, Math.PI * 2);
       ctx.fill();
@@ -658,6 +702,7 @@ export default function Game() {
           onPlayAgain={startGame}
           onBackToMenu={backToMenu}
           onSubmitScore={submitScore}
+          coinsEarned={coinsEarned}
         />
     </div>
   );

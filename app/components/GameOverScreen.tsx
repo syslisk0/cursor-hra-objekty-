@@ -11,6 +11,7 @@ interface GameOverScreenProps {
   onPlayAgain: () => void;
   onBackToMenu: () => void;
   onSubmitScore?: (finalScore: number) => Promise<{ isRecord: boolean; best: number }>;
+  coinsEarned?: number;
 }
 
 export default function GameOverScreen({
@@ -22,7 +23,8 @@ export default function GameOverScreen({
   yellowObjectCount,
   onPlayAgain,
   onBackToMenu,
-  onSubmitScore
+  onSubmitScore,
+  coinsEarned = 0
 }: GameOverScreenProps) {
   const [saving, setSaving] = useState(false);
   const [recordInfo, setRecordInfo] = useState<{ isRecord: boolean; best: number } | null>(null);
@@ -57,6 +59,10 @@ export default function GameOverScreen({
             <div className="col-span-1 md:col-span-1 bg-white/5 rounded-xl p-4">
               <div className="text-gray-300 text-sm">Skóre</div>
               <div className="text-3xl font-bold">{score}</div>
+            </div>
+            <div className="col-span-1 md:col-span-1 bg-white/5 rounded-xl p-4">
+              <div className="text-gray-300 text-sm">Získané mince</div>
+              <div className="text-3xl font-bold">{coinsEarned}</div>
             </div>
             <div className="col-span-1 md:col-span-1 bg-white/5 rounded-xl p-4">
               <div className="text-gray-300 text-sm">Rychlost skóre</div>
