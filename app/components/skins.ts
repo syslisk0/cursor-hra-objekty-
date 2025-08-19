@@ -1,4 +1,4 @@
-export type SkinId = 'green' | 'blue' | 'pink' | 'white' | 'peach' | 'gold' | 'diamond' | 'skull' | 'space';
+export type SkinId = 'green' | 'blue' | 'pink' | 'white' | 'peach' | 'gold' | 'diamond' | 'skull' | 'space' | 'watermelon' | 'football' | 'basketball' | 'tennis' | 'golf' | 'volleyball';
 // add new skins: skull (epic), space (legendary)
 
 export type Skin = {
@@ -19,6 +19,12 @@ export const SKINS: Skin[] = [
   { id: 'diamond', name: 'Diamant', color: '#6EC6FF', price: 50, rarity: 'legendary' },
   { id: 'skull', name: 'Lebka', color: '#EEEEEE', price: 25, rarity: 'epic' },
   { id: 'space', name: 'Vesmírná kulička', color: '#0B0F33', price: 60, rarity: 'legendary' },
+  { id: 'watermelon', name: 'Meloun', color: '#FF6699', price: 20, rarity: 'epic' },
+  { id: 'football', name: 'Fotbalový míč', color: '#FFFFFF', price: 12, rarity: 'rare' },
+  { id: 'basketball', name: 'Basketbalový míč', color: '#F28C28', price: 12, rarity: 'rare' },
+  { id: 'tennis', name: 'Tenisový míček', color: '#CCFF00', price: 12, rarity: 'rare' },
+  { id: 'golf', name: 'Golfový míček', color: '#F8F8F8', price: 12, rarity: 'rare' },
+  { id: 'volleyball', name: 'Volejbalový míč', color: '#FFFFFF', price: 12, rarity: 'rare' },
 ];
 
 export function getSkinColor(skinId: SkinId | string | undefined | null): string {

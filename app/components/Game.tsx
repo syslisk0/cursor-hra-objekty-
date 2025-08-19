@@ -102,6 +102,9 @@ export default function Game() {
   const bossActiveRef = useRef<boolean>(false);
   const levelRef = useRef<number>(1);
   const levelTextUntilRef = useRef<number>(0);
+  const globalPauseUntilRef = useRef<number>(0);
+  const bossTextUntilRef = useRef<number>(0);
+  const bossPendingStartAtRef = useRef<number>(0);
 
   const [gameState, setGameState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
@@ -332,6 +335,19 @@ export default function Game() {
       
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Global pause after boss (e.g. during LEVEL 2 banner)
+      const inGlobalPause = globalPauseUntilRef.current > now;
+      // Show BOSS banner when boss starts
+      if (bossTextUntilRef.current > now) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff2d2d';
+        ctx.font = 'bold 72px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('BOSS', canvas.width / 2, canvas.height / 2);
+        ctx.restore();
+      }
       // Show level text overlay if active
       if (levelTextUntilRef.current > now) {
         ctx.save();
@@ -409,7 +425,7 @@ export default function Game() {
         ctx.fill();
       }
 
-      pendingShieldSpawnsRef.current.forEach(pss => {
+      if (!inGlobalPause) pendingShieldSpawnsRef.current.forEach(pss => {
         pss.currentRadius += pss.pulseDirection * SHIELD_SPAWN_WARNING_PULSE_SPEED;
         if (pss.currentRadius <= SHIELD_SPAWN_WARNING_MIN_RADIUS || pss.currentRadius >= SHIELD_SPAWN_WARNING_MAX_RADIUS) {
             pss.pulseDirection *= -1;
@@ -436,12 +452,12 @@ export default function Game() {
         }
         return true;
       });
-      if (newShieldsFromPending.length > 0) {
+      if (!inGlobalPause && newShieldsFromPending.length > 0) {
         shieldsRef.current.push(...newShieldsFromPending);
       }
 
       // Render and pickup hearts (formerly shields)
-      shieldsRef.current.forEach(shield => {
+      if (!inGlobalPause) shieldsRef.current.forEach(shield => {
         const sX = shield.x;
         const sY = shield.y;
         const sSize = shield.size;
@@ -472,7 +488,7 @@ export default function Game() {
         }
       });
 
-      bombCollectiblesRef.current.forEach(bomb => {
+      if (!inGlobalPause) bombCollectiblesRef.current.forEach(bomb => {
         ctx.fillStyle = BOMB_COLLECTIBLE_COLOR;
         ctx.beginPath();
         ctx.arc(bomb.x, bomb.y, bomb.size, 0, Math.PI * 2);
@@ -492,7 +508,7 @@ export default function Game() {
       });
 
       // Hourglass rendering and pickup
-      hourglassCollectiblesRef.current.forEach(hourglass => {
+      if (!inGlobalPause) hourglassCollectiblesRef.current.forEach(hourglass => {
         // Vykreslení přesýpacích hodin
         ctx.fillStyle = HOURGLASS_COLLECTIBLE_COLOR;
         const hx = hourglass.x;
@@ -548,7 +564,7 @@ export default function Game() {
 
       let currentRedCount = 0;
       let currentYellowCount = 0;
-      pendingSpawnsRef.current.forEach(ps => {
+      if (!inGlobalPause) pendingSpawnsRef.current.forEach(ps => {
         ps.currentRadius += ps.pulseDirection * SPAWN_WARNING_PULSE_SPEED;
         if (ps.currentRadius <= SPAWN_WARNING_MIN_RADIUS || ps.currentRadius >= SPAWN_WARNING_MAX_RADIUS) {
             ps.pulseDirection *= -1;
@@ -572,7 +588,7 @@ export default function Game() {
         }
         return true;
       });
-      if(newObjectsFromPending.length > 0) {
+      if(!inGlobalPause && newObjectsFromPending.length > 0) {
         objectsRef.current.push(...newObjectsFromPending);
       }
       for (let i = 0; i < objectsRef.current.length; i++) {
@@ -668,7 +684,7 @@ export default function Game() {
           ctx.restore();
         }
         const distancePlayer = Math.sqrt(Math.pow(obj.x - mousePos.x, 2) + Math.pow(obj.y - mousePos.y, 2));
-        if (distancePlayer < obj.size + PLAYER_RADIUS) {
+        if (!inGlobalPause && distancePlayer < obj.size + PLAYER_RADIUS) {
           // Ignore collisions during invulnerability window
           if (now < invulnerableUntilRef.current) {
             return true;
@@ -877,7 +893,7 @@ export default function Game() {
     };
   }, [gameState, score, addPendingSpawn]);
 
-  // Boss trigger when reaching score 1000
+  // Boss trigger when reaching score 1000 (delay actual spawn until banner ends)
   useEffect(() => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
@@ -894,9 +910,9 @@ export default function Game() {
       currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
       lastScoreAccelerationTimeRef.current = 0;
       setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
-      // center boss
-      startBoss(bossRef.current, canvas.width / 2, canvas.height / 2, now);
-      bossActiveRef.current = true;
+      // show BOSS banner for 3 seconds
+      bossTextUntilRef.current = now + 3000;
+      bossPendingStartAtRef.current = bossTextUntilRef.current;
     }
   }, [score, gameState]);
 
@@ -922,20 +938,33 @@ export default function Game() {
           const hitWall = (o.x - o.size < 0) || (o.x + o.size > canvas.width) || (o.y - o.size < 0) || (o.y + o.size > canvas.height);
           return !hitWall;
         });
+      } else if (bossPendingStartAtRef.current > 0 && now >= bossPendingStartAtRef.current && levelRef.current === 1) {
+        // spawn boss now after banner
+        startBoss(bossRef.current, canvas.width / 2, canvas.height / 2, now);
+        bossActiveRef.current = true;
+        bossPendingStartAtRef.current = 0;
       } else if (bossActiveRef.current) {
         // Boss just finished → Level 2
         bossActiveRef.current = false;
         levelRef.current = 2;
-        currentScoreIntervalMsRef.current = Math.max(MIN_SCORE_INTERVAL, INITIAL_SCORE_INTERVAL / 2);
-        setDisplayedScoreSpeed(1000 / currentScoreIntervalMsRef.current);
-        lastScoreAccelerationTimeRef.current = 0;
-        levelTextUntilRef.current = Date.now() + 2000;
-        // ensure field is clean while Level 2 text is shown
+        // Pause game for 3 seconds and show banner
+        levelTextUntilRef.current = Date.now() + 3000;
+        globalPauseUntilRef.current = levelTextUntilRef.current;
+        // Clear field entirely during pause
         objectsRef.current = [];
         pendingSpawnsRef.current = [];
         pendingShieldSpawnsRef.current = [];
         bombCollectiblesRef.current = [];
         hourglassCollectiblesRef.current = [];
+        // After pause, resume with faster scoring (overall +5%) and clean field ensured
+        setTimeout(() => {
+          currentScoreIntervalMsRef.current = Math.max(MIN_SCORE_INTERVAL, INITIAL_SCORE_INTERVAL / 2);
+          setDisplayedScoreSpeed(1000 / currentScoreIntervalMsRef.current);
+          lastScoreAccelerationTimeRef.current = 0;
+        }, 3000);
+        // suppress new spawns during level 2 text window
+        lastBombSpawnScoreRef.current = score;
+        lastHourglassSpawnScoreRef.current = score;
       }
     };
     const id = setInterval(tick, 16);

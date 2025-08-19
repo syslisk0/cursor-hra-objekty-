@@ -1,8 +1,8 @@
 export const PLAYER_RADIUS = 10;
 export const OBJECT_SIZE = 20;
 // Globální škálování rychlosti hry (1.0 = původní, 0.9 = o 10% pomalejší)
-export const GLOBAL_SPEED_SCALE = 0.9;
-export const GLOBAL_TIME_SCALE = 0.9;
+export const GLOBAL_SPEED_SCALE = 0.95; // +5% rychlejší oproti předchozímu stavu
+export const GLOBAL_TIME_SCALE = 0.95;
 export const INITIAL_RED_OBJECT_SPEED = 3 * GLOBAL_SPEED_SCALE; // 10% zpomalení
 export const OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD = 50;
 export const OBJECT_SPEED_ACCELERATION_FACTOR = 1.0 + (1.2 - 1.0) * GLOBAL_SPEED_SCALE; // 10% zpomalení zrychlování

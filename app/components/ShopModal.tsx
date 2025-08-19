@@ -126,6 +126,61 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                           <path d="M35,88 L35,98 M40,88 L40,98 M45,88 L45,98 M50,88 L50,98 M55,88 L55,98 M60,88 L60,98 M65,88 L65,98" stroke="#111" strokeWidth="1" />
                         </svg>
                       </div>
+                    ) : skin.id === 'watermelon' ? (
+                      <div className="w-10 h-10 relative rounded-full overflow-hidden" style={{ background: 'linear-gradient(90deg, #1D7A3B 0%, #2FAA52 50%, #1D7A3B 100%)', border: '3px solid #1D7A3B' }}>
+                        <div className="absolute inset-[3px] rounded-full" style={{ backgroundColor: '#FF6F91' }} />
+                        {/* seeds clipped within pink area */}
+                        <svg viewBox="0 0 40 40" className="absolute inset-[3px] rounded-full">
+                          <defs>
+                            <clipPath id="clip-pink">
+                              <circle cx="20" cy="20" r="20" />
+                            </clipPath>
+                          </defs>
+                          <g clipPath="url(#clip-pink)">
+                            {Array.from({ length: 10 }).map((_, i) => (
+                              <ellipse key={i} cx={(6 + (i % 5) * 6)} cy={(8 + Math.floor(i / 5) * 10)} rx="1" ry="2" fill="#000" transform="rotate(20, 20, 20)" />
+                            ))}
+                          </g>
+                        </svg>
+                      </div>
+                    ) : skin.id === 'football' ? (
+                      <div className="w-10 h-10 rounded-full bg-white relative">
+                        {[...Array(5)].map((_, i) => (
+                          <div key={i} className="absolute" style={{
+                            width: 8, height: 8, backgroundColor: '#111',
+                            clipPath: 'polygon(50% 0%, 95% 35%, 77% 90%, 23% 90%, 5% 35%)',
+                            left: `${6 + i*4}px`, top: `${6 + (i%2)*6}px`
+                          }} />
+                        ))}
+                      </div>
+                    ) : skin.id === 'basketball' ? (
+                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: '#F28C28', boxShadow: 'inset 0 0 0 2px #7A4A0E' }}>
+                        <svg viewBox="0 0 40 40" className="w-10 h-10">
+                          <path d="M0 20 H40 M20 0 V40 M6 6 C20 20, 20 20, 34 34 M34 6 C20 20, 20 20, 6 34" stroke="#7A4A0E" strokeWidth="2" fill="none" />
+                        </svg>
+                      </div>
+                    ) : skin.id === 'tennis' ? (
+                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: '#CCFF00' }}>
+                        <svg viewBox="0 0 40 40" className="w-10 h-10">
+                          <path d="M0 14 C16 14, 24 26, 40 26 M0 26 C16 26, 24 14, 40 14" stroke="#FFFFFF" strokeWidth="2" fill="none" />
+                        </svg>
+                      </div>
+                    ) : skin.id === 'golf' ? (
+                      <div className="w-10 h-10 rounded-full bg-white relative">
+                        {[...Array(10)].map((_, i) => (
+                          <div key={i} className="absolute rounded-full" style={{ width: 2, height: 2, backgroundColor: '#ddd', left: `${6 + (i%5)*6}px`, top: `${6 + Math.floor(i/5)*6}px` }} />
+                        ))}
+                      </div>
+                    ) : skin.id === 'volleyball' ? (
+                      <div className="w-10 h-10 rounded-full bg-white relative">
+                        <svg viewBox="0 0 40 40" className="w-10 h-10">
+                          <path d="M2 20 C2 10, 10 2, 20 2" stroke="#d1d5db" strokeWidth="2" fill="none" />
+                          <path d="M38 20 C38 10, 30 2, 20 2" stroke="#d1d5db" strokeWidth="2" fill="none" />
+                          <path d="M2 20 C2 30, 10 38, 20 38" stroke="#d1d5db" strokeWidth="2" fill="none" />
+                          <path d="M38 20 C38 30, 30 38, 20 38" stroke="#d1d5db" strokeWidth="2" fill="none" />
+                          <path d="M2 26 H38 M2 14 H38" stroke="#d1d5db" strokeWidth="2" />
+                        </svg>
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
                     )}

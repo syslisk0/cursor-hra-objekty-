@@ -77,8 +77,11 @@ export function spawnRadialProjectiles(
   speed: number,
   color: string
 ) {
+  // Slightly vary wave directions each time
+  const baseOffset = (Math.random() * 2 - 1) * (Math.PI / 8); // up to ±22.5°
   for (let i = 0; i < count; i++) {
-    const angle = (i / count) * Math.PI * 2;
+    const jitter = (Math.random() * 2 - 1) * (Math.PI / 24); // up to ±7.5° per projectile
+    const angle = (i / count) * Math.PI * 2 + baseOffset + jitter;
     const dx = Math.cos(angle);
     const dy = Math.sin(angle);
     const obj = createObject(cx, cy, dx, dy, speed, color);
@@ -143,9 +146,10 @@ export function updateBoss(
         state.speed = 7;
         state.chargeActive = true;
       } else {
-        // move boss forward
-        state.centerX += state.dx * state.speed;
-        state.centerY += state.dy * state.speed;
+        // move boss forward smoothly (use fractional step)
+        const step = 1; // smaller multipliers for smoother motion, actual render runs at ~60fps
+        state.centerX += state.dx * state.speed * step;
+        state.centerY += state.dy * state.speed * step;
         // wall collision -> clamp, stop, confusion 1s, increment count
         const r = 18; // boss radius must match renderer
         const hitWall = (state.centerX - r < 0) || (state.centerX + r > canvas.width) || (state.centerY - r < 0) || (state.centerY + r > canvas.height);
