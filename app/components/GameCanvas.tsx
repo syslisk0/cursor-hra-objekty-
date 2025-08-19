@@ -51,7 +51,7 @@ export default function GameCanvas({
     onTouchPosition?.(x, y);
   };
   return (
-    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 p-4 relative overflow-hidden overscroll-none touch-none select-none">
+    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 p-4 relative overflow-hidden overscroll-none touch-none select-none cursor-none">
       <div className="text-white text-xl mb-2 w-full max-w-[800px] hidden sm:flex items-center justify-start gap-4 px-2">
         <div className="flex items-center gap-1">
           {Array.from({ length: hearts }).map((_, idx) => (
