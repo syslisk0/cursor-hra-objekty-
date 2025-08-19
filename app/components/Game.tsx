@@ -124,6 +124,7 @@ export default function Game() {
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
   const [playerColor, setPlayerColor] = useState<string>(PLAYER_DEFAULT_COLOR);
+  const [selectedSkinId, setSelectedSkinId] = useState<string>('green');
   const [coinsEarned, setCoinsEarned] = useState<number>(0);
   const coinsAwardedRef = useRef<boolean>(false);
 
@@ -195,11 +196,15 @@ export default function Game() {
       if (u) {
         try {
           const rec = await getUser(u.uid);
-          setPlayerColor(getSkinColor(rec?.selectedSkinId || 'green'));
+          const sid = rec?.selectedSkinId || 'green';
+          setSelectedSkinId(sid);
+          setPlayerColor(getSkinColor(sid));
         } catch (_) {
+          setSelectedSkinId('green');
           setPlayerColor(PLAYER_DEFAULT_COLOR);
         }
       } else {
+        setSelectedSkinId('green');
         setPlayerColor(PLAYER_DEFAULT_COLOR);
       }
     });
@@ -211,7 +216,9 @@ export default function Game() {
       if (currentUser) {
         try {
           const rec = await getUser(currentUser.uid);
-          setPlayerColor(getSkinColor(rec?.selectedSkinId || 'green'));
+          const sid = rec?.selectedSkinId || 'green';
+          setSelectedSkinId(sid);
+          setPlayerColor(getSkinColor(sid));
         } catch (_) {
           /* ignore */
         }
@@ -303,10 +310,64 @@ export default function Game() {
         ctx.fillStyle = `rgba(255, 0, 0, ${alpha})`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
-      ctx.fillStyle = playerColor;
-      ctx.beginPath();
-      ctx.arc(mousePos.x, mousePos.y, PLAYER_RADIUS, 0, Math.PI * 2);
-      ctx.fill();
+      // Draw player ball with optional skin effects
+      if (selectedSkinId === 'diamond') {
+        ctx.save();
+        // Draw a cut-diamond shape: wide top, triangular bottom tip
+        const cx = mousePos.x;
+        const cy = mousePos.y;
+        const r = PLAYER_RADIUS;
+        const grad = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+        // Cooler, more blue gradient
+        grad.addColorStop(0, '#E3F6FF');
+        grad.addColorStop(0.45, playerColor);
+        grad.addColorStop(1, '#198CFF');
+        ctx.fillStyle = grad;
+        // Top is a trapezoid, bottom is a triangle (point)
+        const topWidth = r * 1.6; // wider top
+        const tipY = cy + r; // bottom tip
+        ctx.beginPath();
+        // trapezoid top
+        ctx.moveTo(cx - topWidth * 0.6, cy - r * 0.9); // top-left
+        ctx.lineTo(cx + topWidth * 0.6, cy - r * 0.9); // top-right
+        ctx.lineTo(cx + topWidth * 0.45, cy - r * 0.1); // mid-right (thicker top)
+        ctx.lineTo(cx - topWidth * 0.45, cy - r * 0.1); // mid-left (thicker top)
+        ctx.closePath();
+        ctx.fill();
+        // bottom triangle tip
+        ctx.beginPath();
+        ctx.moveTo(cx - topWidth * 0.45, cy - r * 0.1);
+        ctx.lineTo(cx + topWidth * 0.45, cy - r * 0.1);
+        ctx.lineTo(cx, tipY);
+        ctx.closePath();
+        ctx.fill();
+        // Light facets
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1;
+        // top facets
+        ctx.beginPath();
+        ctx.moveTo(cx - topWidth * 0.6, cy - r * 0.9);
+        ctx.lineTo(cx + topWidth * 0.6, cy - r * 0.9);
+        ctx.moveTo(cx - topWidth * 0.45, cy - r * 0.1);
+        ctx.lineTo(cx + topWidth * 0.45, cy - r * 0.1);
+        // diagonals on top
+        ctx.moveTo(cx - topWidth * 0.6, cy - r * 0.9);
+        ctx.lineTo(cx - topWidth * 0.2, cy - r * 0.1);
+        ctx.moveTo(cx + topWidth * 0.6, cy - r * 0.9);
+        ctx.lineTo(cx + topWidth * 0.2, cy - r * 0.1);
+        // triangle facets
+        ctx.moveTo(cx - topWidth * 0.45, cy - r * 0.1);
+        ctx.lineTo(cx, tipY);
+        ctx.moveTo(cx + topWidth * 0.45, cy - r * 0.1);
+        ctx.lineTo(cx, tipY);
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = playerColor;
+        ctx.beginPath();
+        ctx.arc(mousePos.x, mousePos.y, PLAYER_RADIUS, 0, Math.PI * 2);
+        ctx.fill();
+      }
 
       pendingShieldSpawnsRef.current.forEach(pss => {
         pss.currentRadius += pss.pulseDirection * SHIELD_SPAWN_WARNING_PULSE_SPEED;

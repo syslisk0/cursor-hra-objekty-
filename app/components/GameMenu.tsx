@@ -52,7 +52,7 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
   return (
     <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center">
       <h1 className="text-3xl sm:text-5xl font-bold mb-8">Vyhýbej se Objektům!</h1>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4 w-full max-w-md">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 mb-4 w-full max-w-md">
         <button
           onClick={onStartGame}
           className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-green-500 rounded-lg hover:bg-green-600 text-lg sm:text-2xl font-semibold transition-colors"
@@ -96,6 +96,9 @@ export default function GameMenu({ onStartGame }: GameMenuProps) {
               </p>
               <p className="text-base sm:text-lg mb-4 text-gray-300">
                 Ve hře jsou také hodiny, které se spawnují ve skóre 200, 275, 350 atd. Zpomalí čas na 5 sekund o 60%.
+              </p>
+              <p className="text-base sm:text-lg mb-4 text-green-300 font-semibold">
+                Odměny: Za každých 100 bodů skóre získáš 1 minci.
               </p>
             <button
               onClick={toggleInfoModal}

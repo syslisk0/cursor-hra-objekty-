@@ -83,9 +83,29 @@ export default function ShopModal({ onClose }: ShopModalProps) {
               return (
                 <div key={skin.id} className={`p-4 rounded-lg bg-gray-700/50 border ${selected ? 'border-green-400' : 'border-white/10'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
+                    {skin.id === 'diamond' ? (
+                      <div className="w-10 h-10 relative">
+                        <svg viewBox="0 0 100 120" className="w-10 h-10">
+                          <defs>
+                            <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#E3F6FF"/>
+                              <stop offset="45%" stopColor={skin.color}/>
+                              <stop offset="100%" stopColor="#198CFF"/>
+                            </linearGradient>
+                          </defs>
+                          <path d="M10,10 L90,10 L80,40 L20,40 Z M20,40 L80,40 L50,110 Z" fill="url(#g)" stroke="rgba(255,255,255,0.5)" strokeWidth="2"/>
+                        </svg>
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
+                    )}
                     <div>
                       <div className="font-semibold">{skin.name}</div>
+                      <div className="text-xs uppercase tracking-wide text-gray-300">Vzácnost: {' '}
+                        {skin.rarity === 'legendary' && <span className="text-yellow-300">Legendární</span>}
+                        {skin.rarity === 'epic' && <span className="text-purple-300">Epická</span>}
+                        {skin.rarity === 'rare' && <span className="text-blue-300">Vzácná</span>}
+                      </div>
                       <div className="text-sm text-gray-300">Cena: {skin.price} mincí</div>
                     </div>
                   </div>
