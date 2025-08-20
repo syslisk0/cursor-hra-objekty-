@@ -73,4 +73,25 @@ export interface ActiveExplosion {
   color: string;
 }
 
+export interface DamageAnimation {
+  id: string;
+  x: number;
+  y: number;
+  startTime: number;
+  duration: number;
+  type: 'hit' | 'deathCircle';
+}
+
+export interface AnimationParticle {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+  alpha: number;
+}
+
 export type GameState = 'menu' | 'playing' | 'gameOver';

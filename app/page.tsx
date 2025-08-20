@@ -1,6 +1,7 @@
-import Game from "./components/Game";
-import dynamic from "next/dynamic";
+"use client";
+
 import AuthGate from "./components/AuthGate";
+import Game from "./components/Game";
 
 export default function Home() {
   return (

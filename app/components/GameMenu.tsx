@@ -52,52 +52,108 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
   }, []);
 
   return (
-    <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center relative">
-      <h1 className="text-3xl sm:text-5xl font-bold mb-8">Vyhýbej se Objektům!</h1>
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-4 mb-4 w-full max-w-md">
-        <button
-          onClick={onStartGame}
-          className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-green-500 rounded-lg hover:bg-green-600 text-lg sm:text-2xl font-semibold transition-colors"
-        >
-          Hrát hru
-        </button>
-        <button
-          onClick={toggleInfoModal}
-          className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-blue-500 rounded-lg hover:bg-blue-600 text-lg sm:text-2xl font-semibold transition-colors"
-        >
-          Informace
-        </button>
-        <button
-          onClick={toggleScoreboard}
-          className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-purple-600 rounded-lg hover:bg-purple-500 text-lg sm:text-2xl font-semibold transition-colors"
-        >
-          Žebříček skóre
-        </button>
-        <button
-          onClick={toggleShop}
-          className="w-full sm:w-auto px-6 sm:px-8 py-4 bg-yellow-600 rounded-lg hover:bg-yellow-500 text-lg sm:text-2xl font-semibold transition-colors"
-        >
-          Obchod
-        </button>
+    <div className="w-full h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4 text-center relative overflow-hidden">
+      {/* Animated background particles */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/2 w-60 h-60 bg-green-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '4s' }}></div>
       </div>
-      <div className="mb-8 text-white/90">Mince: <span className="font-semibold">{coinsState.coins}</span></div>
-      <div className="mt-2 flex flex-col items-center gap-1">
-        <p className="text-lg text-gray-400">made by syslisk0</p>
-        {coinsState.username && (
-          <p className="text-sm text-gray-300">Uživatel: <span className="font-semibold">{coinsState.username}</span></p>
-        )}
-        {coinsState.uid && (
+
+      {/* Main content */}
+      <div className="relative z-10 w-full max-w-4xl">
+        {/* Title section */}
+        <div className="mb-12">
+          <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+            Vyhýbej se Objektům!
+          </h1>
+          <p className="text-lg sm:text-xl text-gray-300 mb-6">
+            Ovládej svůj osud, vyhni se překážkám a dosáhni nejvyššího skóre!
+          </p>
+          
+          {/* User info section */}
+          <div className="flex items-center justify-center gap-6 mb-8">
+            <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
+              <span className="text-2xl">💰</span>
+              <span className="text-xl font-bold text-yellow-400">{coinsState.coins?.toLocaleString() || 0}</span>
+              <span className="text-sm text-gray-300">mincí</span>
+            </div>
+            
+            {coinsState.username && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-lg border border-blue-500/30">
+                <span className="text-xl">👤</span>
+                <span className="text-lg font-semibold text-blue-300">{coinsState.username}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Main action buttons */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 max-w-4xl mx-auto">
           <button
-            onClick={() => signOut(auth)}
-            className="mt-1 px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm"
+            onClick={onStartGame}
+            className="group relative overflow-hidden px-6 py-6 bg-gradient-to-br from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 rounded-xl text-xl font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/25 cursor-pointer"
           >
-            Odhlásit se
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex flex-col items-center gap-2">
+              <span className="text-3xl">🎮</span>
+              <span>Hrát hru</span>
+            </div>
           </button>
-        )}
+
+          <button
+            onClick={toggleInfoModal}
+            className="group relative overflow-hidden px-6 py-6 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 rounded-xl text-xl font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/25 cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex flex-col items-center gap-2">
+              <span className="text-3xl">ℹ️</span>
+              <span>Informace</span>
+            </div>
+          </button>
+
+          <button
+            onClick={toggleScoreboard}
+            className="group relative overflow-hidden px-6 py-6 bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-400 hover:to-purple-500 rounded-xl text-xl font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/25 cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex flex-col items-center gap-2">
+              <span className="text-3xl">🏆</span>
+              <span>Žebříček</span>
+            </div>
+          </button>
+
+          <button
+            onClick={toggleShop}
+            className="group relative overflow-hidden px-6 py-6 bg-gradient-to-br from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 rounded-xl text-xl font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-yellow-500/25 cursor-pointer"
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="relative flex flex-col items-center gap-2">
+              <span className="text-3xl">🛒</span>
+              <span>Obchod</span>
+            </div>
+          </button>
+        </div>
+
+        {/* Footer section */}
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex items-center gap-4">
+            <p className="text-lg text-gray-400">made by syslisk0</p>
+            
+            {coinsState.uid && (
+              <button
+                onClick={() => signOut(auth)}
+                className="px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200 text-sm cursor-pointer"
+              >
+                🚪 Odhlásit se
+              </button>
+            )}
+          </div>
+        </div>
       </div>
 
       {showInfoModal && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-md w-full text-center">
             <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-white">Informace o hře</h2>
             <p className="text-base sm:text-lg mb-4 text-gray-300">
@@ -117,7 +173,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
               </p>
             <button
               onClick={toggleInfoModal}
-              className="mt-6 px-6 py-3 bg-red-500 rounded-lg hover:bg-red-600 text-lg sm:text-xl font-semibold transition-colors"
+              className="mt-6 px-6 py-3 bg-red-500 rounded-lg hover:bg-red-600 text-lg sm:text-xl font-semibold transition-colors cursor-pointer"
             >
               Zavřít
             </button>
@@ -126,11 +182,15 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
       )}
 
       {showScoreboard && (
-        <ScoreboardModal onClose={toggleScoreboard} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-7xl max-h-[90vh] overflow-y-auto">
+            <ScoreboardModal onClose={toggleScoreboard} />
+          </div>
+        </div>
       )}
 
       {showShop && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-7xl max-h-[90vh] overflow-y-auto">
             <ShopModal onClose={toggleShop} />
           </div>

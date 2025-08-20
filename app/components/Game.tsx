@@ -19,7 +19,9 @@ import {
   ActiveExplosion,
   HourglassCollectible,
   TimeSlowEffect,
-  GameState
+  GameState,
+  DamageAnimation,
+  AnimationParticle
 } from './types';
 import {
   PLAYER_RADIUS,
@@ -67,7 +69,8 @@ import {
   DAMAGE_PULSE_MAX_ALPHA,
   DAMAGE_PULSE_MIN_ALPHA,
   DAMAGE_PULSE_FREQUENCY,
-  LEVEL2_SPEED_MULTIPLIER
+  LEVEL2_SPEED_MULTIPLIER,
+  BOSS_RADIUS
 } from './constants';
 import {
   createNewGameObject,
@@ -78,6 +81,12 @@ import {
   addHourglassCollectible
 } from './gameLogic';
 import { BossState, createInitialBossState, startBoss, updateBoss } from './GameBoss';
+import { 
+  createDamageAnimation, 
+  createAnimationParticles, 
+  updateAnimationParticles, 
+  renderDamageAnimation 
+} from './AnimationEffects';
 
 export default function Game() {
   const canvasRef = useRef<HTMLCanvasElement>(null!);
@@ -88,6 +97,8 @@ export default function Game() {
   const bombCollectiblesRef = useRef<BombCollectible[]>([]);
   const hourglassCollectiblesRef = useRef<HourglassCollectible[]>([]);
   const activeExplosionsRef = useRef<ActiveExplosion[]>([]);
+  const damageAnimationsRef = useRef<DamageAnimation[]>([]);
+  const animationParticlesRef = useRef<Map<string, AnimationParticle[]>>(new Map());
   const gameLoopRef = useRef<number | null>(null);
   const scoreIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -136,21 +147,75 @@ export default function Game() {
   const invulnerableUntilRef = useRef<number>(0);
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
+  const [viewportTick, setViewportTick] = useState<number>(0);
   const [playerColor, setPlayerColor] = useState<string>(PLAYER_DEFAULT_COLOR);
   const [selectedSkinId, setSelectedSkinId] = useState<string>('green');
+  const [deathCircleLevel, setDeathCircleLevel] = useState<number>(0);
+  const [timelapseLevel, setTimelapseLevel] = useState<number>(0);
+  const [timelapseEquipped, setTimelapseEquipped] = useState<boolean>(false);
+  const [deathCircleEquipped, setDeathCircleEquipped] = useState<boolean>(false);
+  const [deathCircleCooldownLeftMs, setDeathCircleCooldownLeftMs] = useState<number>(0);
   const [coinsEarned, setCoinsEarned] = useState<number>(0);
   const coinsAwardedRef = useRef<boolean>(false);
   const skinSpriteCacheRef = useRef<Record<string, HTMLImageElement | null | 'loading'>>({});
   const watermelonSeedsSpecRef = useRef<Array<{ radial: number; angle: number; rot: number }>>([]);
+  const trailPointsRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
+  const lastDeathCircleUseRef = useRef<number>(0);
+  const handlePointerUpdate = useCallback((x: number, y: number) => {
+    setMousePos({ x, y });
+    // přidej bod do trailu a udržuj krátké okno (max 1000 ms, finální délka se řeže při kreslení)
+    const now = Date.now();
+    trailPointsRef.current.push({ x, y, t: now });
+    const cutoff = now - 1000;
+    while (trailPointsRef.current.length > 0 && trailPointsRef.current[0].t < cutoff) {
+      trailPointsRef.current.shift();
+    }
+  }, []);
+
+  const getTimelapseMultiplier = useCallback(() => {
+    // lvl1 +10%, lvl2 +30%, lvl3 +60%, lvl4 +100%, lvl5 +150%
+    const table = [1, 1.1, 1.3, 1.6, 2.0, 2.5];
+    return table[Math.max(0, Math.min(5, timelapseLevel))];
+  }, [timelapseLevel]);
+
+  const getDeathCircleCooldownMs = useCallback(() => {
+    // lvl1: 20s, lvl2: 15s, lvl3: 10s, lvl4: 5s, lvl5: 0s
+    const table = [Infinity, 20000, 15000, 10000, 5000, 0];
+    return table[Math.max(0, Math.min(5, deathCircleLevel))];
+  }, [deathCircleLevel]);
 
   useEffect(() => {
-    const compute = () => setIsPortrait(typeof window !== 'undefined' && window.innerHeight >= window.innerWidth);
-    compute();
-    window.addEventListener('resize', compute);
-    window.addEventListener('orientationchange', compute as any);
+    if (gameState !== 'playing' || !deathCircleEquipped) {
+      setDeathCircleCooldownLeftMs(0);
+      return;
+    }
+    const id = setInterval(() => {
+      const cd = getDeathCircleCooldownMs();
+      if (cd === 0 || !Number.isFinite(cd)) {
+        setDeathCircleCooldownLeftMs(0);
+        return;
+      }
+      const now = Date.now();
+      const left = Math.max(0, lastDeathCircleUseRef.current + cd - now);
+      setDeathCircleCooldownLeftMs(left);
+    }, 100);
+    return () => clearInterval(id);
+  }, [gameState, getDeathCircleCooldownMs, deathCircleEquipped]);
+  const [showTransitionOverlay, setShowTransitionOverlay] = useState<boolean>(false);
+  const [transitionOpaque, setTransitionOpaque] = useState<boolean>(false);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (typeof window === 'undefined') return;
+      setIsPortrait(window.innerHeight >= window.innerWidth);
+      setViewportTick(v => v + 1);
+    };
+    onResize();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize as any);
     return () => {
-      window.removeEventListener('resize', compute);
-      window.removeEventListener('orientationchange', compute as any);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize as any);
     };
   }, []);
 
@@ -176,6 +241,8 @@ export default function Game() {
     bombCollectiblesRef.current = [];
     hourglassCollectiblesRef.current = [];
     activeExplosionsRef.current = [];
+    damageAnimationsRef.current = [];
+    animationParticlesRef.current.clear();
     setHearts(1);
     invulnerableUntilRef.current = 0;
     currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
@@ -212,6 +279,20 @@ export default function Game() {
     setGameState('playing');
   }, [resetGameValues]);
 
+  const startGameWithTransition = useCallback(() => {
+    // fade to black
+    setShowTransitionOverlay(true);
+    setTransitionOpaque(false);
+    setTimeout(() => setTransitionOpaque(true), 20);
+    // switch to game, then fade out
+    setTimeout(() => {
+      resetGameValues();
+      setGameState('playing');
+      setTransitionOpaque(false);
+    }, 320);
+    setTimeout(() => setShowTransitionOverlay(false), 650);
+  }, [resetGameValues]);
+
   const startDeveloper = useCallback((targetScore?: number) => {
     resetGameValues();
     // start with immortality enabled
@@ -237,48 +318,50 @@ export default function Game() {
       if (u) {
         try {
           const rec = await getUser(u.uid);
-          const sid = rec?.selectedSkinId || 'green';
-          setSelectedSkinId(sid);
-          setPlayerColor(getSkinColor(sid));
+          // Skins vypnuty → vždy zelená
+          setSelectedSkinId('green');
+          setPlayerColor(PLAYER_DEFAULT_COLOR);
+          // Načti schopnosti
+          setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
+          setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
+          setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
         } catch (_) {
           setSelectedSkinId('green');
           setPlayerColor(PLAYER_DEFAULT_COLOR);
+          setDeathCircleLevel(0);
+          setTimelapseLevel(0);
+          setTimelapseEquipped(false);
+          setDeathCircleEquipped(false);
         }
       } else {
         setSelectedSkinId('green');
         setPlayerColor(PLAYER_DEFAULT_COLOR);
+        setDeathCircleLevel(0);
+        setTimelapseLevel(0);
+        setTimelapseEquipped(false);
+        setDeathCircleEquipped(false);
       }
     });
     return () => unsub();
   }, []);
 
   useEffect(() => {
-    const refreshSkin = async () => {
+    // Skins vypnuty, jen dočte schopnosti při změnách uživatele/stavu
+    const refresh = async () => {
       if (currentUser) {
         try {
           const rec = await getUser(currentUser.uid);
-          const sid = rec?.selectedSkinId || 'green';
-          setSelectedSkinId(sid);
-          setPlayerColor(getSkinColor(sid));
-          // pre-load sprite if available for ball skins
-          const skinDef = SKINS.find(s => s.id === sid);
-          const ballIds = new Set(['football', 'basketball', 'tennis', 'golf', 'volleyball']);
-          if (skinDef?.spriteUrl && ballIds.has(skinDef.id)) {
-            if (!skinSpriteCacheRef.current[skinDef.id]) {
-              skinSpriteCacheRef.current[skinDef.id] = 'loading';
-              const img = new Image();
-              img.crossOrigin = 'anonymous';
-              img.onload = () => { skinSpriteCacheRef.current[skinDef.id] = img; };
-              img.onerror = () => { skinSpriteCacheRef.current[skinDef.id] = null; };
-              img.src = skinDef.spriteUrl;
-            }
-          }
+          setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
+          setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
+          setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
         } catch (_) {
           /* ignore */
         }
       }
     };
-    refreshSkin();
+    refresh();
   }, [gameState, currentUser]);
 
   useEffect(() => {
@@ -308,10 +391,11 @@ export default function Game() {
     if (!canvas || gameState !== 'playing') return;
     const handleMouseMove = (e: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      setMousePos({ 
+      const pos = { 
           x: (e.clientX - rect.left) * (canvas.width / rect.width),
           y: (e.clientY - rect.top) * (canvas.height / rect.height)
-      });
+      };
+      handlePointerUpdate(pos.x, pos.y);
     };
     canvas.addEventListener('mousemove', handleMouseMove);
     return () => canvas.removeEventListener('mousemove', handleMouseMove);
@@ -326,10 +410,23 @@ export default function Game() {
     const canvas = canvasRef.current;
     if (!canvas || !canvas.getContext('2d')) return;
     const ctx = canvas.getContext('2d')!;
-    const targetW = isPortrait ? 600 : 800;
-    const targetH = isPortrait ? 800 : 600;
+    // Pevná virtuální hrací plocha s poměrem 16:10 (landscape) a 10:16 (portrait)
+    const targetW = isPortrait ? 500 : 800;
+    const targetH = isPortrait ? 800 : 500;
     if (canvas.width !== targetW) canvas.width = targetW;
     if (canvas.height !== targetH) canvas.height = targetH;
+
+    const getDeathCircleCooldownMs = () => {
+      // lvl1: 20s, lvl2: 15s, lvl3: 10s, lvl4: 5s, lvl5: 0s
+      const table = [Infinity, 20000, 15000, 10000, 5000, 0];
+      return table[Math.max(0, Math.min(5, deathCircleLevel))];
+    };
+
+    const timelapseMultiplier = () => {
+      // lvl1 +10%, lvl2 +30% (přidává 20), lvl3 +60% (+30), lvl4 +100% (+40), lvl5 +150% (+50)
+      const table = [1, 1.1, 1.3, 1.6, 2.0, 2.5];
+      return table[Math.max(0, Math.min(5, timelapseLevel))];
+    };
 
     const gameLoop = () => {
       const now = Date.now();
@@ -357,6 +454,42 @@ export default function Game() {
       
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // Trail za hráčem podle levelu Kruh smrti - pouze když je vybavený
+      if (deathCircleLevel > 0 && deathCircleEquipped) {
+        const fullMs = 400; // kratší i když aktivní
+        const inactiveMs = 80; // ještě kratší, když neaktivní/cooldown
+        const nowMs = Date.now();
+        const isActive = getDeathCircleCooldownMs() === 0 || nowMs - lastDeathCircleUseRef.current >= getDeathCircleCooldownMs();
+        const windowMs = isActive ? fullMs : inactiveMs;
+        const ptsAll = trailPointsRef.current;
+        const pts = ptsAll.filter(p => p.t >= nowMs - windowMs);
+        if (pts.length > 1) {
+          // barva dle levelu
+          const colors = ['#00FFFF', '#00FF00', '#FFFF00', '#FFA500', '#FF0000'];
+          const baseColor = colors[Math.min(5, Math.max(1, deathCircleLevel)) - 1];
+          // více pruhů s rozmazáním a gradientem alfa → jemný glow
+          ctx.save();
+          ctx.lineCap = 'round';
+          for (let pass = 0; pass < 3; pass++) {
+            const alpha = pass === 0 ? 0.3 : pass === 1 ? 0.55 : 0.9;
+            const width = pass === 0 ? 10 : pass === 1 ? 6 : 3;
+            ctx.strokeStyle = baseColor + Math.round(alpha * 255).toString(16).padStart(2, '0');
+            ctx.lineWidth = width;
+            ctx.beginPath();
+            ctx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) {
+              const p0 = pts[i - 1];
+              const p1 = pts[i];
+              // zjemnění – quadratic bez kontrolních bodů (půlka mezi)
+              const cx = (p0.x + p1.x) / 2;
+              const cy = (p0.y + p1.y) / 2;
+              ctx.quadraticCurveTo(p0.x, p0.y, cx, cy);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
       // Global pause after boss (e.g. during LEVEL 2 banner)
       const inGlobalPause = globalPauseUntilRef.current > now;
       // Show BOSS banner when boss starts
@@ -781,6 +914,29 @@ export default function Game() {
         return true;
       });
 
+      // Zpracování damage animací
+      damageAnimationsRef.current = damageAnimationsRef.current.filter(animation => {
+        const elapsed = now - animation.startTime;
+        if (elapsed >= animation.duration) {
+          // Odstraň částice pro tuto animaci
+          animationParticlesRef.current.delete(animation.id);
+          return false;
+        }
+        
+        // Aktualizuj částice pro tuto animaci
+        const particles = animationParticlesRef.current.get(animation.id);
+        if (particles) {
+          const deltaTime = 16; // předpokládané 60 FPS
+          const updatedParticles = updateAnimationParticles(particles, deltaTime);
+          animationParticlesRef.current.set(animation.id, updatedParticles);
+          
+          // Renderuj animaci
+          renderDamageAnimation(ctx, animation, updatedParticles, now);
+        }
+        
+        return true;
+      });
+
       let currentRedCount = 0;
       let currentYellowCount = 0;
       if (!inGlobalPause) pendingSpawnsRef.current.forEach(ps => {
@@ -935,6 +1091,11 @@ export default function Game() {
               slowFactor: DAMAGE_SLOW_FACTOR
             });
             invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
+            
+            // Vytvoř animaci zásahu
+            const hitAnimation = createDamageAnimation(mousePos.x, mousePos.y, 'hit');
+            damageAnimationsRef.current.push(hitAnimation);
+            animationParticlesRef.current.set(hitAnimation.id, createAnimationParticles(hitAnimation));
             objectsRef.current.forEach(o => {
               const knockbackDirX = o.x - mousePos.x;
               const knockbackDirY = o.y - mousePos.y;
@@ -951,6 +1112,55 @@ export default function Game() {
         }
         return true;
       });
+
+      // Death circle obkružení: každých X sekund jednorázově vyhodnotit
+      if (deathCircleLevel > 0 && deathCircleEquipped) {
+        const cd = getDeathCircleCooldownMs();
+        if (now - lastDeathCircleUseRef.current >= cd) {
+          // zkusit najít objekt, který je obkroužen – heuristika: trail posledních N bodů tvoří uzavřenou smyčku kolem objektu
+          const pts = trailPointsRef.current;
+          const N = Math.min(pts.length, 200);
+          const sample = pts.slice(pts.length - N);
+          const areaPoly = (poly: Array<{x:number;y:number}>) => {
+            let a = 0;
+            for (let i = 0; i < poly.length; i++) {
+              const j = (i + 1) % poly.length;
+              a += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
+            }
+            return Math.abs(a) / 2;
+          };
+          const polygonArea = sample.length >= 3 ? areaPoly(sample) : 0;
+          if (polygonArea > 500) {
+            // vyhledej jeden objekt uvnitř polygonu (ray casting)
+            const pointInPoly = (x:number, y:number) => {
+              let inside = false;
+              for (let i = 0, j = sample.length - 1; i < sample.length; j = i++) {
+                const xi = sample[i].x, yi = sample[i].y;
+                const xj = sample[j].x, yj = sample[j].y;
+                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
+                if (intersect) inside = !inside;
+              }
+              return inside;
+            };
+            const targetIndex = objectsRef.current.findIndex(o => pointInPoly(o.x, o.y));
+            if (targetIndex !== -1) {
+              // zabij právě jeden obkroužený objekt
+              const killedObject = objectsRef.current[targetIndex];
+              objectsRef.current.splice(targetIndex, 1);
+              lastDeathCircleUseRef.current = now;
+              
+              // Vytvoř animaci exploze pro zabití kruhem smrti
+              const deathAnimation = createDamageAnimation(killedObject.x, killedObject.y, 'deathCircle');
+              damageAnimationsRef.current.push(deathAnimation);
+              animationParticlesRef.current.set(deathAnimation.id, createAnimationParticles(deathAnimation));
+              
+              // okamžitě přepočítej zbývající cooldown
+              const left = Math.max(0, lastDeathCircleUseRef.current + cd - now);
+              setDeathCircleCooldownLeftMs(left);
+            }
+          }
+        }
+      }
       setRedObjectCount(currentRedCount);
       setYellowObjectCount(currentYellowCount);
       // Draw centered boss (visible in all boss phases)
@@ -959,7 +1169,7 @@ export default function Game() {
         if (phase === 'intro' || phase === 'wave_attacks' || phase === 'charge_attacks' || phase === 'final_burst' || phase === 'done') {
           const cx = (bossRef.current as any).centerX;
           const cy = (bossRef.current as any).centerY;
-          const r = 18;
+          const r = BOSS_RADIUS;
           // pulsing spawn aura during intro
           if (phase === 'intro') {
             const t = (now % 1000) / 1000;
@@ -1018,7 +1228,7 @@ export default function Game() {
             gameLoopRef.current = null; 
         }
     };
-  }, [gameState, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect, isPortrait]);
+  }, [gameState, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect, isPortrait, viewportTick]);
 
   useEffect(() => {
     if (gameState !== 'playing') {
@@ -1031,6 +1241,7 @@ export default function Game() {
 
     const setupScoreInterval = () => {
       if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
+      const tlMult = timelapseEquipped ? 1.2 : 1;
       scoreIntervalRef.current = setInterval(() => {
         setScore(prev => prev + 1);
         const elapsedTime = Date.now() - gameTimeStartRef.current;
@@ -1039,12 +1250,14 @@ export default function Game() {
           const newInterval = Math.max(MIN_SCORE_INTERVAL, currentScoreIntervalMsRef.current * SCORE_ACCELERATION_FACTOR);
           if (newInterval !== currentScoreIntervalMsRef.current) {
             currentScoreIntervalMsRef.current = newInterval;
-            setDisplayedScoreSpeed(1000 / newInterval);
+            setDisplayedScoreSpeed((1000 / newInterval) * tlMult);
             setupScoreInterval();
           }
           lastScoreAccelerationTimeRef.current = elapsedTime;
         }
-      }, currentScoreIntervalMsRef.current);
+      }, Math.max(10, currentScoreIntervalMsRef.current / tlMult));
+      // aktualizuj zobrazenou rychlost hned teď podle aktuálního multiplikátoru
+      setDisplayedScoreSpeed((1000 / currentScoreIntervalMsRef.current) * tlMult);
     };
 
     setupScoreInterval();
@@ -1124,7 +1337,7 @@ export default function Game() {
       if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
       scoreIntervalRef.current = null;
     };
-  }, [gameState, score, addPendingSpawn]);
+  }, [gameState, score, addPendingSpawn, timelapseEquipped]);
 
   // Boss trigger when reaching score 1000
   useEffect(() => {
@@ -1212,14 +1425,15 @@ export default function Game() {
           // Zrychlit skórování o 10 % (kratší interval)
           const newInterval = Math.max(MIN_SCORE_INTERVAL, currentScoreIntervalMsRef.current / LEVEL2_SPEED_MULTIPLIER);
           currentScoreIntervalMsRef.current = newInterval;
-          setDisplayedScoreSpeed(1000 / newInterval);
+          const tlMult = timelapseEquipped ? 1.2 : 1;
+          setDisplayedScoreSpeed((1000 / newInterval) * tlMult);
           lastScoreAccelerationTimeRef.current = 0;
 
           // Resetnout score interval hned teď, efekt si ho následně přenastaví s akcelerací
           if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
           scoreIntervalRef.current = setInterval(() => {
             setScore(prev => prev + 1);
-          }, currentScoreIntervalMsRef.current);
+          }, Math.max(10, currentScoreIntervalMsRef.current / (timelapseEquipped ? 1.2 : 1)));
         }, 3000);
         // suppress new spawns during level 2 text window
         lastBombSpawnScoreRef.current = score;
@@ -1231,11 +1445,19 @@ export default function Game() {
   }, [gameState, mousePos]);
 
   if (gameState === 'menu') {
-    return <GameMenu onStartGame={startGame} onStartDeveloper={startDeveloper} />;
+    return (
+      <>
+        <GameMenu onStartGame={startGameWithTransition} onStartDeveloper={startDeveloper} />
+        {showTransitionOverlay && (
+          <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
+        )}
+      </>
+    );
   }
 
   if (gameState === 'playing') {
     return (
+      <>
       <GameCanvas
         score={score}
         displayedScoreSpeed={displayedScoreSpeed}
@@ -1246,14 +1468,22 @@ export default function Game() {
         hearts={hearts}
         timeSlowActive={timeSlowEffect.isActive}
         canvasRef={canvasRef}
-        onTouchPosition={(x, y) => setMousePos({ x, y })}
+        onTouchPosition={(x, y) => handlePointerUpdate(x, y)}
         isPortrait={isPortrait}
+        deathCircleCooldownLeftMs={deathCircleCooldownLeftMs}
+        deathCircleLevel={deathCircleLevel}
+        deathCircleEquipped={deathCircleEquipped}
       />
+      {showTransitionOverlay && (
+        <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
+      )}
+      </>
     );
   }
 
   if (gameState === 'gameOver') {
   return (
+    <>
     <div className="w-full h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
         <GameOverScreen
           score={score}
@@ -1268,6 +1498,10 @@ export default function Game() {
           coinsEarned={coinsEarned}
         />
     </div>
+    {showTransitionOverlay && (
+      <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
+    )}
+    </>
   );
   }
 
