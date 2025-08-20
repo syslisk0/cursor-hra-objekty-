@@ -55,3 +55,6 @@ export const DAMAGE_SLOW_FACTOR = 0.05; // 5 % původní rychlosti
 export const DAMAGE_PULSE_MAX_ALPHA = 0.35; // maximální průhlednost červeného pulsu
 export const DAMAGE_PULSE_MIN_ALPHA = 0.1; // minimální průhlednost červeného pulsu
 export const DAMAGE_PULSE_FREQUENCY = 6.0; // rychlost pulzování (rad/s)
+
+// Multiplikátor pro Level 2: vše o 10 % rychlejší
+export const LEVEL2_SPEED_MULTIPLIER = 1.1;

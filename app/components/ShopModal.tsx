@@ -76,7 +76,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
         <>
           <div className="mb-4">Mince: <span className="font-semibold">{coins}</span></div>
           {error && <div className="mb-3 text-red-400">{error}</div>}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
             {[...SKINS]
               .sort((a: Skin, b: Skin) => {
                 const order: Record<Skin['rarity'], number> = { rare: 0, super_rare: 1, epic: 2, legendary: 3 };
@@ -91,7 +91,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                   <div className="flex items-center gap-3">
                     {/* Custom previews for certain skins to match in-game look */}
                     {skin.id === 'space' ? (
-                      <div className="w-10 h-10 rounded-full relative overflow-hidden" style={{ backgroundColor: '#5B2C6F' }}>
+                      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full relative overflow-hidden" style={{ backgroundColor: '#5B2C6F' }}>
                         <div className="absolute inset-1 rounded-full" style={{ backgroundColor: '#0B0F33' }} />
                         {/* stars */}
                         <div className="absolute inset-0">
@@ -103,8 +103,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                         </div>
                       </div>
                     ) : skin.id === 'golf' ? (
-                      <div className="w-10 h-10 rounded-full relative overflow-hidden flex items-center justify-center">
-                        <div className="w-9 h-9 rounded-full relative overflow-hidden bg-white">
+                      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full relative overflow-hidden flex items-center justify-center">
+                        <div className="w-9 h-9 md:w-11 md:h-11 lg:w-12 lg:h-12 rounded-full relative overflow-hidden bg-white">
                           {/* dimples grid */}
                           <div className="absolute inset-0">
                             {Array.from({ length: 4 }).map((_, ri) => (
@@ -114,9 +114,9 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                         </div>
                       </div>
                     ) : skin.id === 'watermelon' ? (
-                      <div className="w-10 h-10 rounded-full relative overflow-hidden flex items-center justify-center">
+                      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full relative overflow-hidden flex items-center justify-center">
                         <canvas
-                          className="w-9 h-9"
+                          className="w-9 h-9 md:w-11 md:h-11 lg:w-12 lg:h-12"
                           ref={(el) => {
                             if (!el) return;
                             const size = 64;
@@ -160,11 +160,11 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                         />
                       </div>
                     ) : skin.spriteUrl ? (
-                      <div className="w-10 h-10 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
+                      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
                         <img src={skin.spriteUrl} alt={skin.name} className="w-full h-full object-contain" />
                       </div>
                     ) : (
-                      <div className="w-10 h-10 rounded-full" style={{ backgroundColor: skin.color }} />
+                      <div className="w-10 h-10 md:w-12 md:h-12 lg:w-14 lg:h-14 rounded-full" style={{ backgroundColor: skin.color }} />
                     )}
                     <div>
                       <div className="font-semibold">{skin.name}</div>

@@ -66,7 +66,8 @@ import {
   DAMAGE_SLOW_FACTOR,
   DAMAGE_PULSE_MAX_ALPHA,
   DAMAGE_PULSE_MIN_ALPHA,
-  DAMAGE_PULSE_FREQUENCY
+  DAMAGE_PULSE_FREQUENCY,
+  LEVEL2_SPEED_MULTIPLIER
 } from './constants';
 import {
   createNewGameObject,
@@ -1201,11 +1202,24 @@ export default function Game() {
         pendingShieldSpawnsRef.current = [];
         bombCollectiblesRef.current = [];
         hourglassCollectiblesRef.current = [];
-        // After pause, resume with faster scoring (overall +5%) and clean field ensured
+        // Po pauze: Level 2 začne o 10 % rychlejší (rychlost skóre i objektů)
         setTimeout(() => {
-          currentScoreIntervalMsRef.current = Math.max(MIN_SCORE_INTERVAL, INITIAL_SCORE_INTERVAL / 2);
-          setDisplayedScoreSpeed(1000 / currentScoreIntervalMsRef.current);
+          // Zrychlit objekty o 10 %
+          currentRedObjectSpeedRef.current *= LEVEL2_SPEED_MULTIPLIER;
+          setDisplayedRedObjectSpeed(currentRedObjectSpeedRef.current);
+          setDisplayedYellowObjectSpeed(currentRedObjectSpeedRef.current / 2);
+
+          // Zrychlit skórování o 10 % (kratší interval)
+          const newInterval = Math.max(MIN_SCORE_INTERVAL, currentScoreIntervalMsRef.current / LEVEL2_SPEED_MULTIPLIER);
+          currentScoreIntervalMsRef.current = newInterval;
+          setDisplayedScoreSpeed(1000 / newInterval);
           lastScoreAccelerationTimeRef.current = 0;
+
+          // Resetnout score interval hned teď, efekt si ho následně přenastaví s akcelerací
+          if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
+          scoreIntervalRef.current = setInterval(() => {
+            setScore(prev => prev + 1);
+          }, currentScoreIntervalMsRef.current);
         }, 3000);
         // suppress new spawns during level 2 text window
         lastBombSpawnScoreRef.current = score;

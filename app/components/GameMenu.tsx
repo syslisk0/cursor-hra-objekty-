@@ -131,7 +131,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
 
       {showShop && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-2xl w-full">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-7xl max-h-[90vh] overflow-y-auto">
             <ShopModal onClose={toggleShop} />
           </div>
         </div>
