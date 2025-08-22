@@ -267,6 +267,10 @@ export default function Game() {
       if (e.key === 'Enter') {
         devImmortalRef.current = !devImmortalRef.current;
       }
+      // ESC to quit game
+      if (e.key === 'Escape') {
+        endGame();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -1696,6 +1700,11 @@ export default function Game() {
   if (gameState === 'playing') {
     return (
       <>
+      {/* ESC key indicator - positioned outside game area */}
+      <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-black/70 text-white px-4 py-2 rounded-lg border border-gray-500 text-sm font-mono">
+        Press <span className="bg-gray-700 px-2 py-1 rounded text-yellow-400 font-bold">ESC</span> to quit
+      </div>
+      
       <GameCanvas
         score={score}
         displayedScoreSpeed={displayedScoreSpeed}
