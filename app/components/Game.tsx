@@ -99,6 +99,7 @@ export default function Game() {
   const activeExplosionsRef = useRef<ActiveExplosion[]>([]);
   const damageAnimationsRef = useRef<DamageAnimation[]>([]);
   const animationParticlesRef = useRef<Map<string, AnimationParticle[]>>(new Map());
+  const deathSoundRef = useRef<HTMLAudioElement | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const scoreIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -155,12 +156,16 @@ export default function Game() {
   const [timelapseEquipped, setTimelapseEquipped] = useState<boolean>(false);
   const [deathCircleEquipped, setDeathCircleEquipped] = useState<boolean>(false);
   const [deathCircleCooldownLeftMs, setDeathCircleCooldownLeftMs] = useState<number>(0);
+  const [blackHoleLevel, setBlackHoleLevel] = useState<number>(0);
+  const [blackHoleEquipped, setBlackHoleEquipped] = useState<boolean>(false);
+  const [blackHoleCooldownLeftMs, setBlackHoleCooldownLeftMs] = useState<number>(0);
   const [coinsEarned, setCoinsEarned] = useState<number>(0);
   const coinsAwardedRef = useRef<boolean>(false);
   const skinSpriteCacheRef = useRef<Record<string, HTMLImageElement | null | 'loading'>>({});
   const watermelonSeedsSpecRef = useRef<Array<{ radial: number; angle: number; rot: number }>>([]);
   const trailPointsRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
   const lastDeathCircleUseRef = useRef<number>(0);
+  const lastBlackHoleUseRef = useRef<number>(0);
   const handlePointerUpdate = useCallback((x: number, y: number) => {
     setMousePos({ x, y });
     // přidej bod do trailu a udržuj krátké okno (max 1000 ms, finální délka se řeže při kreslení)
@@ -184,6 +189,9 @@ export default function Game() {
     return table[Math.max(0, Math.min(5, deathCircleLevel))];
   }, [deathCircleLevel]);
 
+  // Black Hole removed
+  const getBlackHoleCooldownMs = useCallback(() => 0, []);
+
   useEffect(() => {
     if (gameState !== 'playing' || !deathCircleEquipped) {
       setDeathCircleCooldownLeftMs(0);
@@ -201,6 +209,11 @@ export default function Game() {
     }, 100);
     return () => clearInterval(id);
   }, [gameState, getDeathCircleCooldownMs, deathCircleEquipped]);
+
+  useEffect(() => {
+    // Black Hole removed
+    setBlackHoleCooldownLeftMs(0);
+  }, [gameState, getBlackHoleCooldownMs, blackHoleEquipped]);
   const [showTransitionOverlay, setShowTransitionOverlay] = useState<boolean>(false);
   const [transitionOpaque, setTransitionOpaque] = useState<boolean>(false);
 
@@ -219,11 +232,25 @@ export default function Game() {
     };
   }, []);
 
+  // Preload death sound
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const audio = new Audio('/sounds/death.mp3');
+      audio.preload = 'auto';
+      audio.volume = 1.0;
+      deathSoundRef.current = audio;
+    } catch (_) {
+      deathSoundRef.current = null;
+    }
+  }, []);
+
   // Developer mode: toggle immortality on Enter while playing
   const devImmortalRef = useRef<boolean>(false);
   useEffect(() => {
     if (gameState !== 'playing') return;
     const onKey = (e: KeyboardEvent) => {
+      // Developer toggle
       if (e.key === 'Enter') {
         devImmortalRef.current = !devImmortalRef.current;
       }
@@ -324,23 +351,31 @@ export default function Game() {
           // Načti schopnosti
           setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
           setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          // Black Hole removed
+          setBlackHoleLevel(0);
           setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
           setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
+          // Black Hole removed
+          setBlackHoleEquipped(false);
         } catch (_) {
           setSelectedSkinId('green');
           setPlayerColor(PLAYER_DEFAULT_COLOR);
           setDeathCircleLevel(0);
           setTimelapseLevel(0);
+          setBlackHoleLevel(0);
           setTimelapseEquipped(false);
           setDeathCircleEquipped(false);
+          setBlackHoleEquipped(false);
         }
       } else {
         setSelectedSkinId('green');
         setPlayerColor(PLAYER_DEFAULT_COLOR);
         setDeathCircleLevel(0);
         setTimelapseLevel(0);
+        setBlackHoleLevel(0);
         setTimelapseEquipped(false);
         setDeathCircleEquipped(false);
+        setBlackHoleEquipped(false);
       }
     });
     return () => unsub();
@@ -354,8 +389,10 @@ export default function Game() {
           const rec = await getUser(currentUser.uid);
           setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
           setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          setBlackHoleLevel(rec?.abilities?.blackHoleLevel || 0);
           setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
           setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
+          setBlackHoleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('blackHole') : false);
         } catch (_) {
           /* ignore */
         }
@@ -366,6 +403,13 @@ export default function Game() {
 
   useEffect(() => {
     if (gameState === 'gameOver') {
+      // Play death sound
+      try {
+        if (deathSoundRef.current) {
+          deathSoundRef.current.currentTime = 0;
+          void deathSoundRef.current.play();
+        }
+      } catch (_) { /* ignore */ }
       const earned = Math.floor(score / 100);
       setCoinsEarned(earned);
       if (!coinsAwardedRef.current) {
@@ -1005,25 +1049,7 @@ export default function Game() {
           const hitWallX = (obj.x - obj.size < 0) || (obj.x + obj.size > canvas.width);
           const hitWallY = (obj.y - obj.size < 0) || (obj.y + obj.size > canvas.height);
           if (obj.isBossProjectile && (hitWallX || hitWallY)) {
-            if (obj.bossProjectileKind === 'wave') {
-              return false; // wave projectiles die on wall
-            }
-            if (obj.bossProjectileKind === 'charge') {
-              // Clamp to wall impact point
-              obj.x = Math.max(obj.size, Math.min(obj.x, canvas.width - obj.size));
-              obj.y = Math.max(obj.size, Math.min(obj.y, canvas.height - obj.size));
-              if (typeof obj.bouncesRemaining === 'number' && obj.bouncesRemaining > 0) {
-                obj.bouncesRemaining -= 1;
-                // Retarget from current position to player's current position (no vanish)
-                const dirX2 = mousePos.x - obj.x;
-                const dirY2 = mousePos.y - obj.y;
-                const mag2 = Math.hypot(dirX2, dirY2) || 1;
-                obj.dx = dirX2 / mag2;
-                obj.dy = dirY2 / mag2;
-              } else {
-                return false; // after required repeats, disappear to allow next phase
-              }
-            }
+            return false; // boss projectiles disappear on wall contact
           }
           if (hitWallX) {
             obj.dx = -obj.dx;
@@ -1166,7 +1192,7 @@ export default function Game() {
       // Draw centered boss (visible in all boss phases)
       if ((bossRef.current as any)?.isActive) {
         const phase: any = (bossRef.current as any).phase;
-        if (phase === 'intro' || phase === 'wave_attacks' || phase === 'charge_attacks' || phase === 'final_burst' || phase === 'done') {
+        if (phase === 'intro' || phase === 'wave_attacks' || phase === 'charge_attacks' || phase === 'return_to_center' || phase === 'final_burst' || phase === 'waiting_for_final_projectiles' || phase === 'done') {
           const cx = (bossRef.current as any).centerX;
           const cy = (bossRef.current as any).centerY;
           const r = BOSS_RADIUS;
@@ -1385,7 +1411,7 @@ export default function Game() {
     const tick = () => {
       const now = Date.now();
       if (bossRef.current.isActive) {
-        updateBoss(
+        const bossResult = updateBoss(
           bossRef.current,
           now,
           objectsRef.current,
@@ -1393,6 +1419,12 @@ export default function Game() {
           mousePos,
           canvas
         );
+        
+        // If boss just fired final burst, create explosion at boss position
+        if (bossResult.justFiredFinalBurst) {
+          activeExplosionsRef.current.push(createExplosion(bossRef.current.centerX, bossRef.current.centerY, 3.0));
+        }
+        
         // destroy boss projectiles on wall hit
         objectsRef.current = objectsRef.current.filter(o => {
           if (!o.isBossProjectile) return true;
@@ -1473,6 +1505,9 @@ export default function Game() {
         deathCircleCooldownLeftMs={deathCircleCooldownLeftMs}
         deathCircleLevel={deathCircleLevel}
         deathCircleEquipped={deathCircleEquipped}
+        blackHoleCooldownLeftMs={blackHoleCooldownLeftMs}
+        blackHoleLevel={blackHoleLevel}
+        blackHoleEquipped={blackHoleEquipped}
       />
       {showTransitionOverlay && (
         <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />

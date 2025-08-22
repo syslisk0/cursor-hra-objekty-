@@ -1,5 +1,6 @@
 'use client';
 import { useEffect } from 'react';
+import { useLanguage } from '@/app/components/LanguageProvider';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -19,6 +20,9 @@ interface GameCanvasProps {
   deathCircleCooldownLeftMs?: number;
   deathCircleLevel?: number;
   deathCircleEquipped?: boolean;
+  blackHoleCooldownLeftMs?: number;
+  blackHoleLevel?: number;
+  blackHoleEquipped?: boolean;
 }
 
 export default function GameCanvas({
@@ -35,8 +39,12 @@ export default function GameCanvas({
   isPortrait,
   deathCircleCooldownLeftMs = 0,
   deathCircleLevel = 0,
-  deathCircleEquipped = false
+  deathCircleEquipped = false,
+  blackHoleCooldownLeftMs = 0,
+  blackHoleLevel = 0,
+  blackHoleEquipped = false
 }: GameCanvasProps) {
+  const { t } = useLanguage();
   // Canvas je zaměřený na vykreslení hry; zobrazení mincí řeší menu a game over
   useEffect(() => {
     const originalOverflow = document.body.style.overflow;
@@ -79,7 +87,7 @@ export default function GameCanvas({
                 <div className="text-2xl">🎯</div>
                 <div>
                   <div className="text-white font-bold text-xl">{score.toLocaleString()}</div>
-                  <div className="text-gray-300 text-xs">Skóre</div>
+                  <div className="text-gray-300 text-xs">{t('hud.score')}</div>
                 </div>
               </div>
             </div>
@@ -89,7 +97,7 @@ export default function GameCanvas({
                 <div className="text-2xl">⚡</div>
                 <div>
                   <div className="text-white font-bold text-lg">{displayedScoreSpeed.toFixed(1)}/s</div>
-                  <div className="text-gray-300 text-xs">Rychlost</div>
+                  <div className="text-gray-300 text-xs">{t('hud.speed')}</div>
                 </div>
               </div>
             </div>
@@ -146,7 +154,7 @@ export default function GameCanvas({
               <div className="bg-black/30 backdrop-blur-sm rounded-xl px-3 py-2 border border-cyan-500/50 animate-pulse">
                 <div className="flex items-center gap-2">
                   <div className="text-lg">🕐</div>
-                  <span className="text-cyan-300 font-semibold text-sm">Zpomalení</span>
+                  <span className="text-cyan-300 font-semibold text-sm">{t('hud.slow')}</span>
                 </div>
               </div>
             )}
@@ -173,8 +181,38 @@ export default function GameCanvas({
                       {isReady ? '⭕' : timeLeft}
                     </div>
                     <div className="text-xs">
-                      <div className="text-white font-semibold">Kruh smrti</div>
-                      <div className="text-gray-300">Lvl {deathCircleLevel}</div>
+                      <div className="text-white font-semibold">{t('hud.deathCircle')}</div>
+                      <div className="text-gray-300">{t('hud.level')} {deathCircleLevel}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {blackHoleLevel > 0 && blackHoleEquipped && (() => {
+              const colors = ['#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6'];
+              const color = colors[Math.min(5, Math.max(1, blackHoleLevel)) - 1];
+              const isReady = blackHoleCooldownLeftMs <= 0;
+              const timeLeft = (blackHoleCooldownLeftMs / 1000).toFixed(1);
+
+              return (
+                <div className="bg-black/30 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300 ${
+                        isReady ? 'animate-pulse shadow-lg' : ''
+                      }`}
+                      style={{
+                        backgroundColor: color,
+                        color: 'white',
+                        boxShadow: isReady ? `0 0 20px ${color}66` : 'none'
+                      }}
+                    >
+                      {isReady ? '⚫' : timeLeft}
+                    </div>
+                    <div className="text-xs">
+                      <div className="text-white font-semibold">{t('hud.blackHole')}</div>
+                      <div className="text-gray-300">{t('hud.level')} {blackHoleLevel}</div>
                     </div>
                   </div>
                 </div>
@@ -210,6 +248,17 @@ export default function GameCanvas({
                   }}
                 >
                   {deathCircleCooldownLeftMs <= 0 ? '⭕' : (deathCircleCooldownLeftMs/1000).toFixed(0)}
+                </div>
+              )}
+              {blackHoleLevel > 0 && blackHoleEquipped && (
+                <div 
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold"
+                  style={{ 
+                    backgroundColor: ['#A78BFA', '#8B5CF6', '#7C3AED', '#6D28D9', '#5B21B6'][Math.min(5, Math.max(1, blackHoleLevel)) - 1],
+                    color: 'white'
+                  }}
+                >
+                  {blackHoleCooldownLeftMs <= 0 ? '⚫' : (blackHoleCooldownLeftMs/1000).toFixed(0)}
                 </div>
               )}
             </div>

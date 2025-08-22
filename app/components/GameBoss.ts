@@ -9,6 +9,7 @@ export type BossPhase =
   | 'charge_attacks'
   | 'return_to_center'
   | 'final_burst'
+  | 'waiting_for_final_projectiles'
   | 'done';
 
 export interface BossState {
@@ -31,6 +32,8 @@ export interface BossState {
   nextActionAt: number; // timestamp when next action can happen
   // visuals
   laughUntil: number;
+  // cycles
+  cycleCount: number; // how many charge cycles completed (0 -> first return leads to waves again, 1 -> final burst)
 }
 
 export function createInitialBossState(): BossState {
@@ -50,6 +53,7 @@ export function createInitialBossState(): BossState {
     chargeActive: false,
     nextActionAt: 0,
     laughUntil: 0,
+    cycleCount: 0,
   };
 }
 
@@ -66,6 +70,7 @@ export function startBoss(state: BossState, centerX: number, centerY: number, no
   state.waitingForProjectilesToDie = false;
   state.chargeActive = false;
   state.chargeWaiting = false;
+  state.cycleCount = 0;
   state.dx = 0; state.dy = 0; state.speed = 0;
 }
 
@@ -87,7 +92,6 @@ export function spawnRadialProjectiles(
     const dy = Math.sin(angle);
     const obj = createObject(cx, cy, dx, dy, speed, color);
     obj.isBossProjectile = true;
-    obj.bossProjectileKind = 'wave';
     container.push(obj);
   }
 }
@@ -99,8 +103,8 @@ export function updateBoss(
   createObject: (x: number, y: number, dx: number, dy: number, speed: number, color: string) => GameObject,
   playerPos: { x: number; y: number },
   canvas: HTMLCanvasElement
-): BossPhase {
-  if (!state.isActive) return 'idle';
+): { phase: BossPhase; justFiredFinalBurst: boolean } {
+  if (!state.isActive) return { phase: 'idle', justFiredFinalBurst: false };
   switch (state.phase) {
     case 'intro': {
       if (now >= state.nextActionAt) {
@@ -108,7 +112,7 @@ export function updateBoss(
         state.laughUntil = now + 1500; // laugh after appearing
         state.nextActionAt = 0;
       }
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     case 'wave_attacks': {
       // if not waiting, spawn next wave of 16 projectiles at 5.23 speed
@@ -122,15 +126,19 @@ export function updateBoss(
       }
       if (state.waveCount >= 3) {
         state.phase = 'charge_attacks';
+        // reset charge cycle state each time we begin charging
+        state.chargeCount = 0;
+        state.chargeWaiting = false;
+        state.chargeActive = false;
         state.nextActionAt = 0;
       }
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     case 'charge_attacks': {
       // boss charges itself towards player's last position with speed 7, direction fixed until wall
       if (state.chargeCount >= 4) {
         state.phase = 'return_to_center';
-        return state.phase;
+        return { phase: state.phase, justFiredFinalBurst: false };
       }
       if (state.chargeWaiting) {
         // confused pause after wall hit
@@ -163,7 +171,7 @@ export function updateBoss(
           state.chargeCount += 1;
         }
       }
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     case 'return_to_center': {
       // Smoothly move boss back to canvas center before the final burst
@@ -175,32 +183,53 @@ export function updateBoss(
       if (dist < 1) {
         state.centerX = targetX;
         state.centerY = targetY;
-        state.phase = 'final_burst';
-        return state.phase;
+        // After reaching center, decide next step based on completed cycles
+        if (state.cycleCount === 0) {
+          // First time returning: do another three waves before charging again
+          state.cycleCount = 1;
+          state.waveCount = 0;
+          state.waitingForProjectilesToDie = false;
+          state.phase = 'wave_attacks';
+        } else {
+          // Second time returning: perform the final burst and finish
+          state.cycleCount = 2;
+          state.phase = 'final_burst';
+        }
+        return { phase: state.phase, justFiredFinalBurst: false };
       }
       const step = Math.min(3.5, Math.max(1.5, dist * 0.05));
       state.centerX += (dx / dist) * step;
       state.centerY += (dy / dist) * step;
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     case 'final_burst': {
       const alive = objects.filter(o => o.isBossProjectile).length;
       if (alive === 0) {
         spawnRadialProjectiles(createObject, objects, state.centerX, state.centerY, 16, 5.23, '#ff0000');
-        state.phase = 'done';
-        state.nextActionAt = now + 3000; // 3s afterburst until normal resumes
+        state.phase = 'waiting_for_final_projectiles';
+        return { phase: state.phase, justFiredFinalBurst: false };
       }
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
+    }
+    case 'waiting_for_final_projectiles': {
+      const alive = objects.filter(o => o.isBossProjectile).length;
+      if (alive === 0) {
+        // All final projectiles are gone - time to explode and disappear
+        state.isActive = false;
+        state.phase = 'idle';
+        return { phase: state.phase, justFiredFinalBurst: true };
+      }
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     case 'done': {
       if (now >= state.nextActionAt) {
         state.isActive = false;
         state.phase = 'idle';
       }
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
     }
     default:
-      return state.phase;
+      return { phase: state.phase, justFiredFinalBurst: false };
   }
 }
 

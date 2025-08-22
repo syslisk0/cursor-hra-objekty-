@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { useLanguage } from '@/app/components/LanguageProvider';
 
 interface GameOverScreenProps {
   score: number;
@@ -26,6 +27,7 @@ export default function GameOverScreen({
   onSubmitScore,
   coinsEarned = 0
 }: GameOverScreenProps) {
+  const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
   const [recordInfo, setRecordInfo] = useState<{ isRecord: boolean; best: number } | null>(null);
 
@@ -69,9 +71,9 @@ export default function GameOverScreen({
                 <div className="text-5xl animate-bounce">💀</div>
                 <div>
                   <h2 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-red-400 via-pink-500 to-purple-500 bg-clip-text text-transparent">
-                    Game Over
+                    {t('go.title')}
                   </h2>
-                  <p className="text-sm text-gray-300 mt-1">Tvoje cesta končí zde... prozatím!</p>
+                  <p className="text-sm text-gray-300 mt-1">{t('go.subtitle')}</p>
                 </div>
                 <div className="text-5xl animate-bounce" style={{ animationDelay: '0.5s' }}>☠️</div>
               </div>
@@ -86,7 +88,7 @@ export default function GameOverScreen({
                   <div className="relative bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 border border-blue-500/30">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">🎯</div>
-                      <div className="text-blue-300 text-sm font-semibold">KONEČNÉ SKÓRE</div>
+                      <div className="text-blue-300 text-sm font-semibold">{t('go.finalScore')}</div>
                     </div>
                     <div className="text-3xl font-bold text-white">{score.toLocaleString()}</div>
                   </div>
@@ -98,7 +100,7 @@ export default function GameOverScreen({
                   <div className="relative bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 border border-yellow-500/30">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">💰</div>
-                      <div className="text-yellow-300 text-sm font-semibold">ZÍSKANÉ MINCE</div>
+                      <div className="text-yellow-300 text-sm font-semibold">{t('go.coins')}</div>
                     </div>
                     <div className="text-3xl font-bold text-white">{coinsEarned}</div>
                   </div>
@@ -110,9 +112,9 @@ export default function GameOverScreen({
                   <div className="relative bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 border border-green-500/30">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">⚡</div>
-                      <div className="text-green-300 text-sm font-semibold">RYCHLOST</div>
+                      <div className="text-green-300 text-sm font-semibold">{t('go.speed')}</div>
                     </div>
-                    <div className="text-3xl font-bold text-white">{displayedScoreSpeed.toFixed(1)}<span className="text-lg text-gray-400">/s</span></div>
+                    <div className="text-3xl font-bold text-white">{displayedScoreSpeed.toFixed(1)}<span className="text-lg text-gray-400">{t('hud.speedUnit')}</span></div>
                   </div>
                 </div>
 
@@ -122,7 +124,7 @@ export default function GameOverScreen({
                   <div className="relative bg-gray-800/60 backdrop-blur-sm rounded-xl p-4 border border-pink-500/30">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="text-3xl">🎪</div>
-                      <div className="text-pink-300 text-sm font-semibold">OBJEKTY</div>
+                      <div className="text-pink-300 text-sm font-semibold">{t('go.objects')}</div>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
@@ -143,17 +145,17 @@ export default function GameOverScreen({
                 <div className="bg-gradient-to-br from-red-500/10 to-red-600/5 rounded-xl p-4 border border-red-500/20">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse"></div>
-                    <div className="text-red-300 text-sm font-semibold">ČERVENÉ OBJEKTY</div>
+                    <div className="text-red-300 text-sm font-semibold">{t('go.redObjects')}</div>
                   </div>
-                  <div className="text-2xl font-bold text-white">{displayedRedObjectSpeed.toFixed(1)} <span className="text-sm text-gray-400">rychlost</span></div>
+                  <div className="text-2xl font-bold text-white">{displayedRedObjectSpeed.toFixed(1)} <span className="text-sm text-gray-400">{t('go.speedUnit')}</span></div>
                 </div>
                 
                 <div className="bg-gradient-to-br from-yellow-500/10 to-yellow-600/5 rounded-xl p-4 border border-yellow-500/20">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-4 h-4 bg-yellow-500 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }}></div>
-                    <div className="text-yellow-300 text-sm font-semibold">ŽLUTÉ OBJEKTY</div>
+                    <div className="text-yellow-300 text-sm font-semibold">{t('go.yellowObjects')}</div>
                   </div>
-                  <div className="text-2xl font-bold text-white">{displayedYellowObjectSpeed.toFixed(1)} <span className="text-sm text-gray-400">rychlost</span></div>
+                  <div className="text-2xl font-bold text-white">{displayedYellowObjectSpeed.toFixed(1)} <span className="text-sm text-gray-400">{t('go.speedUnit')}</span></div>
                 </div>
               </div>
             </div>
@@ -169,13 +171,13 @@ export default function GameOverScreen({
                   {recordInfo.isRecord ? (
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">🏆</span>
-                      <span>NOVÝ REKORD! ({recordInfo.best.toLocaleString()})</span>
+                      <span>{t('go.newRecord')} ({recordInfo.best.toLocaleString()})</span>
                       <span className="text-2xl">🏆</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-xl">📊</span>
-                      <span>Nejlepší rekord: {recordInfo.best.toLocaleString()}</span>
+                      <span>{t('go.bestRecord')} {recordInfo.best.toLocaleString()}</span>
                     </div>
                   )}
                 </div>
@@ -188,12 +190,12 @@ export default function GameOverScreen({
                   {saving ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      <span>Ukládám...</span>
+                      <span>{t('go.saving')}</span>
                     </>
                   ) : (
                     <>
                       <span className="text-xl">💾</span>
-                      <span>Uložit skóre</span>
+                      <span>{t('go.saveScore')}</span>
                     </>
                   )}
                 </button>
@@ -208,7 +210,7 @@ export default function GameOverScreen({
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative flex items-center gap-3">
                     <span className="text-2xl">🎮</span>
-                    <span>Hrát znovu</span>
+                    <span>{t('go.playAgain')}</span>
                   </div>
                 </button>
                 
@@ -219,7 +221,7 @@ export default function GameOverScreen({
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   <div className="relative flex items-center gap-3">
                     <span className="text-2xl">🏠</span>
-                    <span>Hlavní menu</span>
+                    <span>{t('go.backToMenu')}</span>
                   </div>
                 </button>
               </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useLanguage } from '@/app/components/LanguageProvider';
 import ScoreboardModal from '@/app/components/ScoreboardModal';
 import ShopModal from '@/app/components/ShopModal';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
@@ -15,10 +16,12 @@ interface GameMenuProps {
 }
 
 export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProps) {
+  const { lang, setLang, t } = useLanguage();
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
   const [showShop, setShowShop] = useState(false);
   const [coinsState, setCoinsState] = useState<CoinsState>({ coins: 0, uid: null, username: null });
+  const [showLangMenu, setShowLangMenu] = useState(false);
 
   const toggleInfoModal = useCallback(() => {
     setShowInfoModal(prev => !prev);
@@ -60,15 +63,46 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
         <div className="absolute top-1/2 left-1/2 w-60 h-60 bg-green-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '4s' }}></div>
       </div>
 
+      {/* Language switcher top-right */}
+      <div className="absolute top-4 right-4 z-20">
+        <div className="relative">
+          <button
+            className="flex items-center gap-2 px-3 py-2 bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 rounded-lg cursor-pointer"
+            onClick={() => setShowLangMenu(prev => !prev)}
+          >
+            <span className="text-xl">{lang === 'cs' ? '🇨🇿' : '🇬🇧'}</span>
+            <span className="text-sm text-gray-300 uppercase">{lang}</span>
+          </button>
+          {showLangMenu && (
+            <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-white/10 rounded-lg shadow-lg">
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                onClick={() => { setLang('cs'); setShowLangMenu(false); }}
+              >
+                <span>🇨🇿</span>
+                <span>Čeština</span>
+              </button>
+              <button
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                onClick={() => { setLang('en'); setShowLangMenu(false); }}
+              >
+                <span>🇬🇧</span>
+                <span>English</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main content */}
       <div className="relative z-10 w-full max-w-4xl">
         {/* Title section */}
         <div className="mb-12">
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold mb-4 bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-            Vyhýbej se Objektům!
+            {t('menu.title')}
           </h1>
           <p className="text-lg sm:text-xl text-gray-300 mb-6">
-            Ovládej svůj osud, vyhni se překážkám a dosáhni nejvyššího skóre!
+            {t('menu.subtitle')}
           </p>
           
           {/* User info section */}
@@ -76,7 +110,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
             <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
               <span className="text-2xl">💰</span>
               <span className="text-xl font-bold text-yellow-400">{coinsState.coins?.toLocaleString() || 0}</span>
-              <span className="text-sm text-gray-300">mincí</span>
+              <span className="text-sm text-gray-300">{t('menu.coins')}</span>
             </div>
             
             {coinsState.username && (
@@ -97,7 +131,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex flex-col items-center gap-2">
               <span className="text-3xl">🎮</span>
-              <span>Hrát hru</span>
+              <span>{t('menu.play')}</span>
             </div>
           </button>
 
@@ -108,7 +142,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex flex-col items-center gap-2">
               <span className="text-3xl">ℹ️</span>
-              <span>Informace</span>
+              <span>{t('menu.info')}</span>
             </div>
           </button>
 
@@ -119,7 +153,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex flex-col items-center gap-2">
               <span className="text-3xl">🏆</span>
-              <span>Žebříček</span>
+              <span>{t('menu.scoreboard')}</span>
             </div>
           </button>
 
@@ -130,7 +164,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
             <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             <div className="relative flex flex-col items-center gap-2">
               <span className="text-3xl">🛒</span>
-              <span>Obchod</span>
+              <span>{t('menu.shop')}</span>
             </div>
           </button>
         </div>
@@ -138,14 +172,14 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
         {/* Footer section */}
         <div className="flex flex-col items-center gap-4">
           <div className="flex items-center gap-4">
-            <p className="text-lg text-gray-400">made by syslisk0</p>
+            <p className="text-lg text-gray-400">{t('made by syslisk0')}</p>
             
             {coinsState.uid && (
               <button
                 onClick={() => signOut(auth)}
                 className="px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200 text-sm cursor-pointer"
               >
-                🚪 Odhlásit se
+                🚪 {t('menu.logout')}
               </button>
             )}
           </div>
@@ -155,27 +189,17 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
       {showInfoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-md w-full text-center">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-white">Informace o hře</h2>
-            <p className="text-base sm:text-lg mb-4 text-gray-300">
-              Cílem hry je vyhnout se objektům. Když dosáhnete skóre 100 a více, je šance 30 %, že se spawne žlutý objekt, který je sice o 50 % pomalejší, ale následuje vás.
-            </p>
-            <p className="text-base sm:text-lg mb-4 text-gray-300">
-              Místo štítu jsou ve hře srdíčka (ve stylu Minecraft). Začínáš s 1 srdíčkem. Srdíčko se spawnuje při skóre 100, 200, 300 atd. Po sebrání zvýší počet tvých srdcí. Když přijdeš o srdíčko při zásahu, pozadí začne červeně pulzovat a vše se zpomalí na 5 % po dobu 5 sekund, aby ses stihl dostat do bezpečí. Během těchto 5 sekund jsi nesmrtelný.
-            </p>
-                          <p className="text-base sm:text-lg mb-4 text-gray-300">
-                Na mapě se nachází i bomba, která se spawnuje, když dosáhnete skóre 150, 280, 380, 480 atd. Bomba má hnědou barvu a dokáže zničit všechny objekty v daném dosahu.
-              </p>
-              <p className="text-base sm:text-lg mb-4 text-gray-300">
-                Ve hře jsou také hodiny, které se spawnují ve skóre 200, 275, 350 atd. Zpomalí čas na 5 sekund o 60%.
-              </p>
-              <p className="text-base sm:text-lg mb-4 text-green-300 font-semibold">
-                Odměny: Za každých 100 bodů skóre získáš 1 minci.
-              </p>
+            <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-white">{t('menu.infoTitle')}</h2>
+            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP1')}</p>
+            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP2')}</p>
+            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP3')}</p>
+            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP4')}</p>
+            <p className="text-base sm:text-lg mb-4 text-green-300 font-semibold">{t('menu.rewards')}</p>
             <button
               onClick={toggleInfoModal}
               className="mt-6 px-6 py-3 bg-red-500 rounded-lg hover:bg-red-600 text-lg sm:text-xl font-semibold transition-colors cursor-pointer"
             >
-              Zavřít
+              {t('menu.close')}
             </button>
           </div>
         </div>
