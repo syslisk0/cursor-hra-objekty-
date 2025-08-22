@@ -158,6 +158,8 @@ export default function Game() {
     slowFactor: DAMAGE_SLOW_FACTOR
   });
   const invulnerableUntilRef = useRef<number>(0);
+  // Developer mode flag and immortality toggle
+  const devModeRef = useRef<boolean>(false);
   const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
   const [viewportTick, setViewportTick] = useState<number>(0);
@@ -258,13 +260,13 @@ export default function Game() {
     }
   }, []);
 
-  // Developer mode: toggle immortality on Enter while playing
+  // Developer mode: toggle immortality on Enter while playing (only in dev mode)
   const devImmortalRef = useRef<boolean>(false);
   useEffect(() => {
     if (gameState !== 'playing') return;
     const onKey = (e: KeyboardEvent) => {
       // Developer toggle
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && devModeRef.current) {
         devImmortalRef.current = !devImmortalRef.current;
       }
       // ESC to quit game
@@ -317,10 +319,13 @@ export default function Game() {
     } else {
         setMousePos({ x: 400, y: 300 });
     }
-  }, []);
+  }, [heartmanLevel]);
 
   const startGame = useCallback(() => {
     resetGameValues();
+    // leaving developer mode for normal play
+    devModeRef.current = false;
+    devImmortalRef.current = false;
     setGameState('playing');
   }, [resetGameValues]);
 
@@ -332,6 +337,8 @@ export default function Game() {
     // switch to game, then fade out
     setTimeout(() => {
       resetGameValues();
+      devModeRef.current = false;
+      devImmortalRef.current = false;
       setGameState('playing');
       setTransitionOpaque(false);
     }, 320);
@@ -340,7 +347,8 @@ export default function Game() {
 
   const startDeveloper = useCallback((targetScore?: number) => {
     resetGameValues();
-    // start with immortality enabled
+    // enable developer mode; allow Enter to toggle immortality
+    devModeRef.current = true;
     devImmortalRef.current = true;
     setGameState('playing');
     if (typeof targetScore === 'number' && isFinite(targetScore) && targetScore >= 0) {
@@ -354,6 +362,9 @@ export default function Game() {
   }, []);
 
   const backToMenu = useCallback(() => {
+    // leaving developer mode when going back to menu
+    devModeRef.current = false;
+    devImmortalRef.current = false;
     setGameState('menu');
   }, []);
 
@@ -514,6 +525,7 @@ export default function Game() {
         setPlayerColor(PLAYER_DEFAULT_COLOR);
         setDeathCircleLevel(0);
         setTimelapseLevel(0);
+        setHeartmanLevel(0);
         setBlackHoleLevel(0);
         setTimelapseEquipped(false);
         setDeathCircleEquipped(false);
@@ -523,26 +535,6 @@ export default function Game() {
     return () => unsub();
   }, []);
 
-  useEffect(() => {
-    // Skins vypnuty, jen dočte schopnosti při změnách uživatele/stavu
-    const refresh = async () => {
-      if (currentUser) {
-        try {
-          const rec = await getUser(currentUser.uid);
-          setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
-          setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
-          setHeartmanLevel(rec?.abilities?.heartmanLevel || 0);
-          setBlackHoleLevel(rec?.abilities?.blackHoleLevel || 0);
-          setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
-          setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
-          setBlackHoleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('blackHole') : false);
-        } catch (_) {
-          /* ignore */
-        }
-      }
-    };
-    refresh();
-  }, [gameState, currentUser]);
 
   useEffect(() => {
     if (gameState === 'gameOver') {
