@@ -20,12 +20,18 @@ export const SCORE_ACCELERATION_FACTOR = 1.0 - (1.0 - 0.7) * GLOBAL_SPEED_SCALE;
 export const YELLOW_OBJECT_CHANCE_THRESHOLD_SCORE = 100;
 export const YELLOW_OBJECT_SPAWN_CHANCE = 0.3;
 
+// Interval (in score points) at which enemies spawn
+export const ENEMY_SPAWN_SCORE_INTERVAL = 20;
+
 export const SHIELD_SIZE = 15 * GLOBAL_SIZE_SCALE;
 export const SHIELD_PICKUP_COLOR = '#FF3B3B';
 export const PLAYER_WITH_SHIELD_COLOR = '#33FF33';
 export const PLAYER_DEFAULT_COLOR = '#00FF00';
 export const KNOCKBACK_FORCE = 180 * GLOBAL_SIZE_SCALE;
 export const SHIELD_SPAWN_INTERVAL_SCORE = 100;
+
+// Probabilistic spawn chances (0..1)
+export const HEART_SPAWN_CHANCE = 0.5; // 50% chance at each eligible 100-score threshold
 
 export const SHIELD_SPAWN_WARNING_DURATION = 1000;
 export const SHIELD_SPAWN_WARNING_MIN_RADIUS = 5 * GLOBAL_SIZE_SCALE;
@@ -38,6 +44,7 @@ export const BOMB_COLLECTIBLE_COLOR = '#8B4513';
 export const BOMB_FIRST_SPAWN_SCORE = 150;
 export const BOMB_SECOND_SPAWN_SCORE = 280;
 export const BOMB_SUBSEQUENT_SPAWN_INTERVAL = 100;
+export const BOMB_SPAWN_CHANCE = 0.4; // 40% chance at eligible thresholds
 export const BOMB_EXPLOSION_RADIUS = 20 * OBJECT_SIZE;
 export const BOMB_EXPLOSION_DURATION = 500;
 export const BOMB_EXPLOSION_COLOR = 'rgba(255, 165, 0, 0.7)';
@@ -47,6 +54,7 @@ export const HOURGLASS_COLLECTIBLE_COLOR = '#DAA520';
 export const HOURGLASS_FIRST_SPAWN_SCORE = 200;
 export const HOURGLASS_SECOND_SPAWN_SCORE = 275;
 export const HOURGLASS_SUBSEQUENT_SPAWN_INTERVAL = 75;
+export const HOURGLASS_SPAWN_CHANCE = 0.3; // 30% chance at eligible thresholds
 export const TIME_SLOW_DURATION = 5000; // 5 sekund
 export const TIME_SLOW_FACTOR = 0.4; // 60% zpomalení (40% původní rychlosti)
 

@@ -5,74 +5,18 @@ import { useLanguage } from '@/app/components/LanguageProvider';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../lib/firebase';
 import { doc, onSnapshot, runTransaction, serverTimestamp } from 'firebase/firestore';
+import AbilityCard from './AbilityCard';
+import { ABILITY_META, AbilityKey, LEVEL_COLOR, SHOP_ABILITIES } from './abilities';
 
 interface ShopModalProps {
   onClose: () => void;
 }
 
-type AbilityKey = 'deathCircle' | 'timelapse' | 'blackHole';
-
-const ABILITY_META: Record<AbilityKey, { 
-  title: string; 
-  titleEn?: string;
-  baseCost: number; 
-  description: string; 
-  icon: string;
-  upgradeDesc: string[];
-}> = {
-  deathCircle: { 
-    title: 'Kruh Smrti',
-    titleEn: 'Ring of Death',
-    baseCost: 20, 
-    description: 'Obkroužením označíš a zničíš objekt. Vyšší level zkracuje cooldown.',
-    icon: '⭕',
-    upgradeDesc: [
-      'Cooldown: ∞',
-      'Cooldown: 20s',
-      'Cooldown: 15s', 
-      'Cooldown: 10s',
-      'Cooldown: 5s',
-      'Bez cooldownu'
-    ]
-  },
-  timelapse: { 
-    title: 'Timelapse', 
-    baseCost: 30, 
-    description: 'Pasivně zrychluje přičítání skóre. Vyšší level = větší bonus.',
-    icon: '⚡',
-    upgradeDesc: [
-      'Žádný bonus',
-      '+10% rychlost skóre',
-      '+30% rychlost skóre',
-      '+60% rychlost skóre', 
-      '+100% rychlost skóre',
-      '+150% rychlost skóre'
-    ]
-  },
-  blackHole: {
-    title: 'Černá Díra',
-    titleEn: 'Black Hole',
-    baseCost: 50,
-    description: 'Aktivace mezerníkem vytvoří uprostřed mapy černou díru, která pohltí objekty v dosahu.',
-    icon: '🕳️',
-    upgradeDesc: [
-      'Cooldown: ∞',
-      'Cooldown: 25s, Trvání: 1s, Dosah: 0.5× bomba',
-      'Cooldown: 25s, Trvání: 2s, Dosah: +5%'
-      , 'Cooldown: 25s, Trvání: 3s, Dosah: +10%'
-      , 'Cooldown: 25s, Trvání: 4s, Dosah: +15%'
-      , 'Cooldown: 25s, Trvání: 5s, Dosah: +20%'
-    ]
-  }
-};
-
-const LEVEL_COLOR = ['#6B7280', '#00FFFF', '#00FF00', '#FFFF00', '#FFA500', '#FF0000'];
-
 export default function ShopModal({ onClose }: ShopModalProps) {
   const { t, lang } = useLanguage();
   const [uid, setUid] = useState<string | null>(null);
   const [coins, setCoins] = useState<number>(0);
-  const [levels, setLevels] = useState<{ deathCircle: number; timelapse: number; blackHole: number }>({ deathCircle: 0, timelapse: 0, blackHole: 0 });
+  const [levels, setLevels] = useState<{ deathCircle: number; timelapse: number; blackHole: number; heartman: number }>({ deathCircle: 0, timelapse: 0, blackHole: 0, heartman: 0 });
   const [slots, setSlots] = useState<number>(1);
   const [equipped, setEquipped] = useState<(AbilityKey | null)[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -104,7 +48,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
           const dc = typeof data?.abilities?.deathCircleLevel === 'number' ? data.abilities.deathCircleLevel : 0;
           const tl = typeof data?.abilities?.timelapseLevel === 'number' ? data.abilities.timelapseLevel : 0;
           const bh = typeof data?.abilities?.blackHoleLevel === 'number' ? data.abilities.blackHoleLevel : 0;
-          setLevels({ deathCircle: dc, timelapse: tl, blackHole: bh });
+          const hm = typeof data?.abilities?.heartmanLevel === 'number' ? data.abilities.heartmanLevel : 0;
+          setLevels({ deathCircle: dc, timelapse: tl, blackHole: bh, heartman: hm });
           const newSlots = typeof data?.abilitySlots === 'number' ? data.abilitySlots : 1;
           setSlots(newSlots);
           if (newSlots > (lastSlotsRef.current || 1)) {
@@ -113,37 +58,76 @@ export default function ShopModal({ onClose }: ShopModalProps) {
           }
           lastSlotsRef.current = newSlots;
           const raw = Array.isArray(data?.equippedAbilities) ? data.equippedAbilities : [];
-          // Black Hole is removed from the game; ignore if present in user data
-          const normalized = raw.map((v: any) => (v === 'deathCircle' || v === 'timelapse') ? v : null) as (AbilityKey | null)[];
+          // Black Hole is removed from the game; allow deathCircle, timelapse, heartman
+          const normalized = raw.map((v: any) => (v === 'deathCircle' || v === 'timelapse' || v === 'heartman') ? v : null) as (AbilityKey | null)[];
           setEquipped(normalized);
           setLoading(false);
         });
       } else {
         setUid(null);
         setCoins(0);
-        setLevels({ deathCircle: 0, timelapse: 0, blackHole: 0 });
+        setLevels({ deathCircle: 0, timelapse: 0, blackHole: 0, heartman: 0 });
         setLoading(false);
       }
     });
     return () => { if (unsubUser) unsubUser(); unsubAuth(); };
   }, []);
 
-  // Preload cash register sound
+  // Preload cash register sound with fallbacks; set src directly to avoid source-type quirks
   useEffect(() => {
     try {
-      const audio = new Audio('/sounds/11L-A_classic_cash_regis-1755860435960.mp3');
+      const audio = document.createElement('audio');
       audio.preload = 'auto';
       audio.volume = 1.0;
+      const primary = '/sounds/11L-A_classic_cash_regis-1755860435960.mp3';
+      const fallback1 = '/sounds/level1.mp3';
+      const fallback2 = '/sounds/death.mp3';
+      audio.src = primary;
+      // optional: keep out of layout but in DOM helps some browsers
+      audio.style.display = 'none';
+      document.body.appendChild(audio);
+      const onError = () => {
+        try {
+          if (audio.src.endsWith('11L-A_classic_cash_regis-1755860435960.mp3')) {
+            audio.src = fallback1; audio.load(); return;
+          }
+          if (audio.src.endsWith('level1.mp3')) {
+            audio.src = fallback2; audio.load(); return;
+          }
+        } catch {}
+        cashSoundRef.current = null;
+      };
+      audio.addEventListener('error', onError);
       cashSoundRef.current = audio;
     } catch (_) {
       cashSoundRef.current = null;
     }
+    return () => {
+      try {
+        const a = cashSoundRef.current;
+        if (a && a.parentElement) a.parentElement.removeChild(a);
+      } catch {}
+      cashSoundRef.current = null;
+    };
   }, []);
 
   const playCash = () => {
-    const a = cashSoundRef.current;
+    const a = cashSoundRef.current as HTMLAudioElement | null;
     if (!a) return;
     try {
+      // Only try to play when the browser can play it
+      const can = a.canPlayType ? a.canPlayType('audio/mpeg') : '';
+      if (can === '') return;
+      if (a.readyState < 2) {
+        const handler = () => {
+          try { a.currentTime = 0; void a.play(); } catch {}
+          a.removeEventListener('canplaythrough', handler);
+        };
+        a.addEventListener('canplaythrough', handler);
+        // Trigger load just in case
+        try { a.load(); } catch {}
+        return;
+      }
       a.currentTime = 0;
       void a.play();
     } catch (_) { /* ignore */ }
@@ -152,7 +136,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
   const nextCost = useMemo(() => {
     return (key: AbilityKey) => {
       const base = ABILITY_META[key].baseCost;
-      const currentLevel = key === 'deathCircle' ? levels.deathCircle : key === 'timelapse' ? levels.timelapse : levels.blackHole;
+      const currentLevel = key === 'deathCircle' ? levels.deathCircle : key === 'timelapse' ? levels.timelapse : key === 'heartman' ? levels.heartman : levels.blackHole;
       if (currentLevel >= 5) return null;
       // lvl1 stojí base, lvl2 2x, lvl3 4x ...
       return base * Math.pow(2, Math.max(0, currentLevel));
@@ -206,8 +190,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
         if (slotIndex < 0 || slotIndex >= slotsAvail) throw new Error('INVALID_SLOT');
         const level = typeof data?.abilities?.[key + 'Level'] === 'number' ? data.abilities[key + 'Level'] : 0;
         if (level <= 0) throw new Error('ABILITY_NOT_OWNED');
-        // Ignore 'blackHole' in existing equipped list
-        const current: (AbilityKey | null)[] = Array.isArray(data?.equippedAbilities) ? data.equippedAbilities.map((v: any) => (v === 'deathCircle' || v === 'timelapse') ? v : null) : [];
+        // Ignore 'blackHole' in existing equipped list; allow deathCircle, timelapse, heartman
+        const current: (AbilityKey | null)[] = Array.isArray(data?.equippedAbilities) ? data.equippedAbilities.map((v: any) => (v === 'deathCircle' || v === 'timelapse' || v === 'heartman') ? v : null) : [];
         while (current.length < slotsAvail) current.push(null);
         const prevIndex = current.findIndex((v) => v === key);
         if (prevIndex !== -1) current[prevIndex] = null;
@@ -233,7 +217,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
         if (!snap.exists()) throw new Error('USER_NOT_FOUND');
         const data = snap.data() as any;
         const slotsAvail = typeof data?.abilitySlots === 'number' ? data.abilitySlots : 1;
-        const current: (AbilityKey | null)[] = Array.isArray(data?.equippedAbilities) ? data.equippedAbilities.map((v: any) => (v === 'deathCircle' || v === 'timelapse') ? v : null) : [];
+        const current: (AbilityKey | null)[] = Array.isArray(data?.equippedAbilities) ? data.equippedAbilities.map((v: any) => (v === 'deathCircle' || v === 'timelapse' || v === 'heartman') ? v : null) : [];
         while (current.length < slotsAvail) current.push(null);
         if (slotIndex >= 0 && slotIndex < current.length) current[slotIndex] = null;
         while (current.length > 0 && current[current.length - 1] == null) current.pop();
@@ -273,6 +257,23 @@ export default function ShopModal({ onClose }: ShopModalProps) {
     while (arr.length < slots) arr.push(null);
     return arr;
   }, [equipped, slots]);
+
+  // Click-to-equip helper: equips active owned abilities to the first free slot.
+  const equipByClick = (key: AbilityKey) => {
+    const lvl =
+      key === 'deathCircle' ? levels.deathCircle :
+      key === 'timelapse' ? levels.timelapse :
+      key === 'heartman' ? levels.heartman :
+      levels.blackHole;
+    if (lvl <= 0) return; // not owned
+    // Find first free slot
+    const firstFree = equippedPadded.slice(0, slots).findIndex(v => v == null);
+    if (firstFree === -1) {
+      setError(t('shop.error.no_free_slots'));
+      return;
+    }
+    equipAtSlot(firstFree, key);
+  };
 
   return (
     <div className="text-white min-h-[600px]">
@@ -338,7 +339,11 @@ export default function ShopModal({ onClose }: ShopModalProps) {
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {equippedPadded.map((val, idx) => {
                   const meta = val ? ABILITY_META[val] : null;
-                  const level = val === 'deathCircle' ? levels.deathCircle : val === 'timelapse' ? levels.timelapse : val === 'blackHole' ? levels.blackHole : 0;
+                  const level =
+                    val === 'deathCircle' ? levels.deathCircle :
+                    val === 'timelapse' ? levels.timelapse :
+                    val === 'heartman' ? levels.heartman :
+                    val === 'blackHole' ? levels.blackHole : 0;
                   const color = val ? LEVEL_COLOR[level] : LEVEL_COLOR[0];
                   const highlight = highlightSlotIdx === idx;
                   const isDragOver = dragOverSlotIdx === idx;
@@ -365,7 +370,7 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                         setDraggedAbility(null);
                         const ability = e.dataTransfer.getData('text/ability') as AbilityKey;
                         // Block equipping removed ability 'blackHole'
-                        if (ability === 'deathCircle' || ability === 'timelapse') {
+                        if (ability === 'deathCircle' || ability === 'timelapse' || ability === 'heartman') {
                           equipAtSlot(idx, ability);
                         }
                       }}
@@ -393,12 +398,12 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                               {meta?.icon}
                             </div>
                             <div className="text-sm font-semibold mb-1">{lang === 'en' ? (meta?.titleEn || meta?.title) : meta?.title}</div>
-                            <div className="text-xs text-gray-300 mb-2">Level {level}</div>
+                            <div className="text-xs text-gray-300 mb-2">{t('hud.level')} {level}</div>
                             <button 
                               onClick={() => unequipSlot(idx)} 
                               className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 px-2 py-1 bg-red-600/80 hover:bg-red-500 rounded text-xs cursor-pointer"
                             >
-                              ✕ Uvolnit
+                              ✕ {t('shop.release')}
                             </button>
                           </>
                         ) : (
@@ -414,10 +419,10 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                               {isDragOver && isValidDropTarget ? '⬇' : isDragOver && !isValidDropTarget ? '❌' : '+'}
                             </div>
                             <div className="text-xs text-gray-400">
-                              {isDragOver && isValidDropTarget ? 'Pusť zde' : isDragOver && !isValidDropTarget ? 'Nelze umístit' : 'Prázdný slot'}
+                              {isDragOver && isValidDropTarget ? t('shop.dropHere') : isDragOver && !isValidDropTarget ? t('shop.cannotPlace') : t('shop.emptySlot')}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              {isDragOver ? '' : 'Přetáhni schopnost'}
+                              {isDragOver ? '' : t('shop.drag')}
                             </div>
                           </>
                         )}
@@ -467,116 +472,25 @@ export default function ShopModal({ onClose }: ShopModalProps) {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {(['deathCircle','timelapse'] as AbilityKey[]).map((key) => {
-                const lvl = key === 'deathCircle' ? levels.deathCircle : key === 'timelapse' ? levels.timelapse : levels.blackHole;
-                const cost = nextCost(key);
-                const color = LEVEL_COLOR[lvl];
-                const isOwned = lvl > 0;
-                const meta = ABILITY_META[key];
-                const currentDesc = meta.upgradeDesc[lvl];
-                const nextDesc = lvl < 5 ? meta.upgradeDesc[lvl + 1] : null;
+              {(SHOP_ABILITIES as AbilityKey[]).map((key) => {
+                const lvl =
+                  key === 'deathCircle' ? levels.deathCircle :
+                  key === 'timelapse' ? levels.timelapse :
+                  key === 'heartman' ? levels.heartman :
+                  levels.blackHole;
                 const isEquipped = equipped.includes(key);
-                
                 return (
-                  <div 
-                    key={key} 
-                    className={`group relative h-[140px] w-full rounded-xl border-2 transition-all duration-300 overflow-hidden
-                      ${isOwned 
-                        ? 'bg-gradient-to-br from-gray-700/60 to-gray-800/60 border-white/20 hover:border-white/40 cursor-grab active:cursor-grabbing transform hover:scale-105' 
-                        : 'bg-gradient-to-br from-gray-800/40 to-gray-900/40 border-gray-600/50 hover:border-gray-500/50'
-                      }
-                      ${draggedAbility === key ? 'opacity-50 scale-95' : ''}
-                    `}
-                    draggable={isOwned}
-                    onDragStart={(e) => { 
-                      if (isOwned) {
-                        e.dataTransfer.setData('text/ability', key);
-                        setDraggedAbility(key);
-                      }
-                    }}
-                    onDragEnd={() => {
-                      setDraggedAbility(null);
-                      setDragOverSlotIdx(null);
-                    }}
-                  >
-                    {/* Level progress bar */}
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gray-700 overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-400 to-purple-500 transition-all duration-500"
-                        style={{ width: `${(lvl / 5) * 100}%` }}
-                      />
-                    </div>
-
-                    {/* Equipped indicator */}
-                    {isEquipped && (
-                      <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-xs font-bold text-white z-10">
-                        ✓
-                      </div>
-                    )}
-
-                    <div className="p-4 h-full flex flex-col items-center justify-center text-center">
-                      <div 
-                        className="w-14 h-14 rounded-xl mb-2 flex items-center justify-center text-2xl font-bold border-2 border-white/20 shadow-lg flex-shrink-0"
-                        style={{ backgroundColor: color }}
-                      >
-                        {meta.icon}
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col justify-center">
-                        <h4 className="text-sm font-bold mb-1">{lang === 'en' ? (meta.titleEn || meta.title) : meta.title}</h4>
-                        <span className="px-2 py-0.5 bg-gray-700/50 rounded-full text-xs font-semibold mb-1">
-                          {lvl}/5
-                        </span>
-                        
-                        {isOwned && (
-                          <div className="text-[10px] text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200">🖱️ {t('shop.drag')}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Hover overlay s detaily */}
-                    <div className="absolute inset-0 bg-gray-900/95 opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 flex flex-col justify-center">
-                      <div className="text-center mb-3">
-                        <h4 className="text-sm font-bold mb-1">{meta.title}</h4>
-                        <p className="text-xs text-gray-300 mb-2">{meta.description}</p>
-                        
-                        <div className="space-y-1">
-                          <div className="text-xs"><span className="text-gray-400">{t('shop.now')}</span><span className="text-blue-300 ml-1">{currentDesc}</span></div>
-                          {nextDesc && (
-                            <div className="text-xs"><span className="text-gray-400">{t('shop.next')}</span><span className="text-green-300 ml-1">{nextDesc}</span></div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex justify-center">
-                        {lvl === 0 ? (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              upgrade(key);
-                            }} 
-                            className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 rounded text-xs font-semibold transition-all duration-200 cursor-pointer"
-                          >
-                            💰 {t('shop.buy')} ({meta.baseCost})
-                          </button>
-                        ) : cost !== null ? (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              upgrade(key);
-                            }} 
-                            className="px-3 py-1 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 rounded text-xs font-semibold transition-all duration-200 cursor-pointer"
-                          >
-                            ⬆️ {t('shop.upgrade')} ({cost})
-                          </button>
-                        ) : (
-                          <div className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded text-xs font-semibold opacity-75">
-                            ✨ {t('shop.maxLevel')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <AbilityCard
+                    key={key}
+                    ability={key}
+                    level={lvl}
+                    isEquipped={isEquipped}
+                    isDragging={draggedAbility === key}
+                    onUpgrade={(ab) => upgrade(ab)}
+                    onSelect={(ab) => equipByClick(ab)}
+                    onDragStart={(ab, _e) => setDraggedAbility(ab)}
+                    onDragEnd={() => { setDraggedAbility(null); setDragOverSlotIdx(null); }}
+                  />
                 );
               })}
             </div>

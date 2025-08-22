@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/app/components/LanguageProvider';
 import { auth, googleProvider } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, User } from 'firebase/auth';
 import { ensureUserDocument, getUser } from '../services/userService';
 import UsernameModal from './UsernameModal';
 
@@ -37,11 +37,42 @@ export default function AuthGate({ children }: Props) {
     return () => unsub();
   }, []);
 
+  // Handle redirect result (fallback auth)
+  useEffect(() => {
+    // Only in browser
+    if (typeof window === 'undefined') return;
+    getRedirectResult(auth).catch((e) => {
+      // Surface error for debugging in prod
+      console.error('Auth redirect error:', e);
+      setError(t('auth.error'));
+    });
+  }, [t]);
+
   const handleGoogleSignIn = async () => {
     setError(null);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (e) {
+    } catch (e: any) {
+      // Log concrete error code for diagnostics
+      console.error('Auth popup error:', e?.code || e);
+      const code = e?.code as string | undefined;
+      // Common cases: popup blocked or disallowed domain → fallback to redirect
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (re) {
+          console.error('Auth redirect start failed:', re);
+        }
+      }
+      if (code === 'auth/operation-not-supported-in-this-environment' || code === 'auth/unauthorized-domain') {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (re) {
+          console.error('Auth redirect start failed:', re);
+        }
+      }
       setError(t('auth.error'));
     }
   };

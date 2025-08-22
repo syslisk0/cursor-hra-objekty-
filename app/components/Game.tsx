@@ -69,8 +69,12 @@ import {
   DAMAGE_PULSE_MAX_ALPHA,
   DAMAGE_PULSE_MIN_ALPHA,
   DAMAGE_PULSE_FREQUENCY,
+  ENEMY_SPAWN_SCORE_INTERVAL,
   LEVEL2_SPEED_MULTIPLIER,
-  BOSS_RADIUS
+  BOSS_RADIUS,
+  HEART_SPAWN_CHANCE,
+  BOMB_SPAWN_CHANCE,
+  HOURGLASS_SPAWN_CHANCE
 } from './constants';
 import {
   createNewGameObject,
@@ -108,6 +112,8 @@ export default function Game() {
   const lastScoreAccelerationTimeRef = useRef<number>(0);
   const currentRedObjectSpeedRef = useRef<number>(INITIAL_RED_OBJECT_SPEED);
   const lastObjectSpeedIncreaseScoreRef = useRef<number>(0);
+  const objectSpeedIncreaseCountRef = useRef<number>(0);
+  const lastEnemySpawnScoreRef = useRef<number>(-ENEMY_SPAWN_SCORE_INTERVAL);
   const lastShieldSpawnScoreRef = useRef<number>(0);
   const lastBombSpawnScoreRef = useRef<number>(0);
   const lastHourglassSpawnScoreRef = useRef<number>(0);
@@ -122,6 +128,12 @@ export default function Game() {
   const level2InitialSpawnPendingRef = useRef<boolean>(false);
   const spaceStarsSeedRef = useRef<number>(Math.random());
   const levelStartScoreRef = useRef<number>(0);
+  // Background music (Web Audio API for gapless looping)
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const bgmGainRef = useRef<GainNode | null>(null);
+  const bgmSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const bgmBuffersRef = useRef<Map<'menu' | 'level1' | 'level2' | 'boss', AudioBuffer>>(new Map());
+  const bgmKeyRef = useRef<'menu' | 'level1' | 'level2' | 'boss' | null>(null);
 
   const [gameState, setGameState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
@@ -153,6 +165,7 @@ export default function Game() {
   const [selectedSkinId, setSelectedSkinId] = useState<string>('green');
   const [deathCircleLevel, setDeathCircleLevel] = useState<number>(0);
   const [timelapseLevel, setTimelapseLevel] = useState<number>(0);
+  const [heartmanLevel, setHeartmanLevel] = useState<number>(0);
   const [timelapseEquipped, setTimelapseEquipped] = useState<boolean>(false);
   const [deathCircleEquipped, setDeathCircleEquipped] = useState<boolean>(false);
   const [deathCircleCooldownLeftMs, setDeathCircleCooldownLeftMs] = useState<number>(0);
@@ -263,20 +276,21 @@ export default function Game() {
     setScore(0);
     objectsRef.current = [];
     pendingSpawnsRef.current = [];
-    shieldsRef.current = [];
     pendingShieldSpawnsRef.current = [];
     bombCollectiblesRef.current = [];
     hourglassCollectiblesRef.current = [];
     activeExplosionsRef.current = [];
     damageAnimationsRef.current = [];
     animationParticlesRef.current.clear();
-    setHearts(1);
+    setHearts(Math.max(1, 1 + heartmanLevel));
     invulnerableUntilRef.current = 0;
     currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
     currentRedObjectSpeedRef.current = INITIAL_RED_OBJECT_SPEED;
     gameTimeStartRef.current = Date.now();
     lastScoreAccelerationTimeRef.current = 0;
     lastObjectSpeedIncreaseScoreRef.current = 0;
+    objectSpeedIncreaseCountRef.current = 0;
+    lastEnemySpawnScoreRef.current = -ENEMY_SPAWN_SCORE_INTERVAL;
     lastShieldSpawnScoreRef.current = 0;
     lastBombSpawnScoreRef.current = 0;
     lastHourglassSpawnScoreRef.current = 0;
@@ -339,6 +353,128 @@ export default function Game() {
     setGameState('menu');
   }, []);
 
+  // Create/ensure AudioContext on demand (user gesture friendly)
+  const ensureAudioContext = useCallback(async () => {
+    if (typeof window === 'undefined') return null;
+    if (!audioCtxRef.current) {
+      try {
+        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        audioCtxRef.current = ctx;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.5; // default volume
+        gain.connect(ctx.destination);
+        bgmGainRef.current = gain;
+      } catch {
+        audioCtxRef.current = null;
+      }
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      try { await ctx.resume(); } catch {}
+    }
+    return audioCtxRef.current;
+  }, []);
+
+  // Decode and cache buffer
+  const loadBgmBuffer = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss') => {
+    if (bgmBuffersRef.current.has(key)) return bgmBuffersRef.current.get(key)!;
+    const url = key === 'menu'
+      ? '/sounds/mainmenu.mp3'
+      : key === 'level1'
+      ? '/sounds/level1.mp3'
+      : key === 'level2'
+      ? '/sounds/level2.mp3'
+      : '/sounds/boss1.mp3';
+    const ctx = await ensureAudioContext();
+    if (!ctx) throw new Error('AudioContext unavailable');
+    const resp = await fetch(url);
+    const arr = await resp.arrayBuffer();
+    const buf = await ctx.decodeAudioData(arr.slice(0));
+    bgmBuffersRef.current.set(key, buf);
+    return buf;
+  }, [ensureAudioContext]);
+
+  const stopBgm = useCallback(() => {
+    try {
+      if (bgmSourceRef.current) {
+        bgmSourceRef.current.onended = null;
+        bgmSourceRef.current.stop(0);
+        bgmSourceRef.current.disconnect();
+      }
+    } catch {}
+    bgmSourceRef.current = null;
+  }, []);
+
+  const playBgm = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss') => {
+    if (bgmKeyRef.current === key && bgmSourceRef.current) return;
+    const ctx = await ensureAudioContext();
+    if (!ctx || !bgmGainRef.current) return;
+    try {
+      const buf = await loadBgmBuffer(key);
+      // Small trim to counter MP3 encoder padding (tweakable)
+      const TRIM = 0.03; // seconds
+      const loopStart = Math.max(0, TRIM);
+      const loopEnd = Math.max(loopStart + 0.1, buf.duration - TRIM);
+      stopBgm();
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.loopStart = loopStart;
+      src.loopEnd = loopEnd;
+      if (bgmGainRef.current) {
+        src.connect(bgmGainRef.current);
+        src.start(0);
+        bgmSourceRef.current = src;
+        bgmKeyRef.current = key;
+      }
+    } catch (error) {
+      // Silently handle audio loading/connection errors
+      console.warn('Audio playback failed:', error);
+    }
+  }, [ensureAudioContext, loadBgmBuffer, stopBgm]);
+
+  // Switch BGM by game state
+  useEffect(() => {
+    if (gameState === 'menu') {
+      void playBgm('menu');
+    } else if (gameState === 'playing') {
+      void playBgm('level1');
+    } else if (gameState === 'gameOver') {
+      stopBgm();
+    }
+  }, [gameState, playBgm, stopBgm]);
+
+  // While playing, detect level 2 switch and change track
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+    let prevLevel = levelRef.current;
+    const id = setInterval(() => {
+      const cur = levelRef.current;
+      if (cur !== prevLevel) {
+        prevLevel = cur;
+        if (cur >= 2) void playBgm('level2');
+        else void playBgm('level1');
+      }
+    }, 300);
+    return () => clearInterval(id);
+  }, [gameState, playBgm]);
+
+  // Cleanup audio context on unmount
+  useEffect(() => {
+    return () => {
+      stopBgm();
+      const ctx = audioCtxRef.current;
+      if (ctx) {
+        try { ctx.close(); } catch {}
+      }
+      audioCtxRef.current = null;
+      bgmGainRef.current = null;
+      bgmSourceRef.current = null;
+      bgmBuffersRef.current.clear();
+      bgmKeyRef.current = null;
+    };
+  }, [stopBgm]);
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setCurrentUser(u ? { uid: u.uid, email: u.email } : null);
@@ -351,6 +487,7 @@ export default function Game() {
           // Načti schopnosti
           setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
           setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          setHeartmanLevel(rec?.abilities?.heartmanLevel || 0);
           // Black Hole removed
           setBlackHoleLevel(0);
           setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
@@ -362,6 +499,7 @@ export default function Game() {
           setPlayerColor(PLAYER_DEFAULT_COLOR);
           setDeathCircleLevel(0);
           setTimelapseLevel(0);
+          setHeartmanLevel(0);
           setBlackHoleLevel(0);
           setTimelapseEquipped(false);
           setDeathCircleEquipped(false);
@@ -389,6 +527,7 @@ export default function Game() {
           const rec = await getUser(currentUser.uid);
           setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
           setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+          setHeartmanLevel(rec?.abilities?.heartmanLevel || 0);
           setBlackHoleLevel(rec?.abilities?.blackHoleLevel || 0);
           setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
           setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
@@ -892,13 +1031,19 @@ export default function Game() {
         const distPlayerBomb = Math.sqrt(Math.pow(bomb.x - mousePos.x, 2) + Math.pow(bomb.y - mousePos.y, 2));
         if (distPlayerBomb < bomb.size + PLAYER_RADIUS) {
           activeExplosionsRef.current.push(createExplosion(bomb.x, bomb.y));
-          const initialObjectCount = objectsRef.current.length;
+          // Determine which enemies are destroyed and play death sound per enemy
+          const toDestroy = objectsRef.current.filter(obj => {
+            const distToExplosion = Math.sqrt(Math.pow(obj.x - bomb.x, 2) + Math.pow(obj.y - bomb.y, 2));
+            return distToExplosion < BOMB_EXPLOSION_RADIUS;
+          });
+          toDestroy.forEach(() => {
+            try { new Audio('/sounds/enemydeath.mp3').play(); } catch {}
+          });
           objectsRef.current = objectsRef.current.filter(obj => {
             const distToExplosion = Math.sqrt(Math.pow(obj.x - bomb.x, 2) + Math.pow(obj.y - bomb.y, 2));
             return distToExplosion >= BOMB_EXPLOSION_RADIUS;
           });
-          const destroyedCount = initialObjectCount - objectsRef.current.length;
-          destroyedByBombCountRef.current += destroyedCount;
+          destroyedByBombCountRef.current += toDestroy.length;
           bombCollectiblesRef.current = bombCollectiblesRef.current.filter(b => b.id !== bomb.id);
         }
       });
@@ -1139,48 +1284,53 @@ export default function Game() {
         return true;
       });
 
-      // Death circle obkružení: každých X sekund jednorázově vyhodnotit
+      // Trail of Death: kill an enemy that touches the recent trail polyline (on cooldown)
       if (deathCircleLevel > 0 && deathCircleEquipped) {
         const cd = getDeathCircleCooldownMs();
         if (now - lastDeathCircleUseRef.current >= cd) {
-          // zkusit najít objekt, který je obkroužen – heuristika: trail posledních N bodů tvoří uzavřenou smyčku kolem objektu
-          const pts = trailPointsRef.current;
-          const N = Math.min(pts.length, 200);
-          const sample = pts.slice(pts.length - N);
-          const areaPoly = (poly: Array<{x:number;y:number}>) => {
-            let a = 0;
-            for (let i = 0; i < poly.length; i++) {
-              const j = (i + 1) % poly.length;
-              a += poly[i].x * poly[j].y - poly[j].x * poly[i].y;
-            }
-            return Math.abs(a) / 2;
-          };
-          const polygonArea = sample.length >= 3 ? areaPoly(sample) : 0;
-          if (polygonArea > 500) {
-            // vyhledej jeden objekt uvnitř polygonu (ray casting)
-            const pointInPoly = (x:number, y:number) => {
-              let inside = false;
-              for (let i = 0, j = sample.length - 1; i < sample.length; j = i++) {
-                const xi = sample[i].x, yi = sample[i].y;
-                const xj = sample[j].x, yj = sample[j].y;
-                const intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi) || 1e-9) + xi);
-                if (intersect) inside = !inside;
-              }
-              return inside;
+          const nowMs = now;
+          const fullMs = 400; // use the same active window as drawing
+          const ptsAll = trailPointsRef.current;
+          const pts = ptsAll.filter(p => p.t >= nowMs - fullMs);
+          if (pts.length >= 2) {
+            // Distance threshold scales slightly with level
+            const threshByLvl = [0, 8, 9, 10, 11, 12];
+            const thresh = threshByLvl[Math.max(0, Math.min(5, deathCircleLevel))];
+
+            const pointSegDist = (px: number, py: number, x1: number, y1: number, x2: number, y2: number) => {
+              const vx = x2 - x1, vy = y2 - y1;
+              const wx = px - x1, wy = py - y1;
+              const vv = vx * vx + vy * vy || 1e-6;
+              let t = (wx * vx + wy * vy) / vv;
+              t = Math.max(0, Math.min(1, t));
+              const cx = x1 + t * vx, cy = y1 + t * vy;
+              const dx = px - cx, dy = py - cy;
+              return Math.hypot(dx, dy);
             };
-            const targetIndex = objectsRef.current.findIndex(o => pointInPoly(o.x, o.y));
-            if (targetIndex !== -1) {
-              // zabij právě jeden obkroužený objekt
-              const killedObject = objectsRef.current[targetIndex];
-              objectsRef.current.splice(targetIndex, 1);
+
+            const hitIndex = objectsRef.current.findIndex((o) => {
+              for (let i = 1; i < pts.length; i++) {
+                const a = pts[i - 1];
+                const b = pts[i];
+                if (pointSegDist(o.x, o.y, a.x, a.y, b.x, b.y) <= thresh) return true;
+              }
+              return false;
+            });
+
+            if (hitIndex !== -1) {
+              const killedObject = objectsRef.current[hitIndex];
+              objectsRef.current.splice(hitIndex, 1);
               lastDeathCircleUseRef.current = now;
-              
-              // Vytvoř animaci exploze pro zabití kruhem smrti
+
+              // Death animation particles (reuse existing type key)
               const deathAnimation = createDamageAnimation(killedObject.x, killedObject.y, 'deathCircle');
               damageAnimationsRef.current.push(deathAnimation);
               animationParticlesRef.current.set(deathAnimation.id, createAnimationParticles(deathAnimation));
-              
-              // okamžitě přepočítej zbývající cooldown
+
+              // Enemy death sound
+              try { new Audio('/sounds/enemydeath.mp3').play(); } catch {}
+
+              // Update cooldown indicator immediately
               const left = Math.max(0, lastDeathCircleUseRef.current + cd - now);
               setDeathCircleCooldownLeftMs(left);
             }
@@ -1236,6 +1386,41 @@ export default function Game() {
             ctx.arc(cx, cy + r * 0.2, r * 0.35, 0, Math.PI);
           }
           ctx.stroke();
+          // Boss contact damage (behave like enemy on touch)
+          // Mirror enemy collision handling: invulnerability window, dev immortality, hearts decrement, damage slow, knockback
+          const distToPlayer = Math.hypot(cx - mousePos.x, cy - mousePos.y);
+          if (!inGlobalPause && distToPlayer < r + PLAYER_RADIUS) {
+            // Ignore during invulnerability
+            if (now >= invulnerableUntilRef.current) {
+              if (!devImmortalRef.current) {
+                if (hearts <= 1) {
+                  setHearts(0);
+                  endGame();
+                } else {
+                  setHearts(prev => Math.max(0, prev - 1));
+                  setDamageSlowEffect({
+                    isActive: true,
+                    startTime: Date.now(),
+                    duration: DAMAGE_SLOW_DURATION,
+                    slowFactor: DAMAGE_SLOW_FACTOR
+                  });
+                  invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
+                  // Knock back existing enemies away from player
+                  objectsRef.current.forEach(o => {
+                    const kx = o.x - mousePos.x;
+                    const ky = o.y - mousePos.y;
+                    const mag = Math.hypot(kx, ky);
+                    if (mag > 0) {
+                      o.dx = (kx / mag);
+                      o.dy = (ky / mag);
+                      o.x += o.dx * KNOCKBACK_FORCE;
+                      o.y += o.dy * KNOCKBACK_FORCE;
+                    }
+                  });
+                }
+              }
+            }
+          }
         }
       }
 
@@ -1290,7 +1475,9 @@ export default function Game() {
 
     const inBossPrezone = score >= 900 && score < 1000;
     if (!inBossPrezone && score - lastObjectSpeedIncreaseScoreRef.current >= OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD) {
-      currentRedObjectSpeedRef.current *= OBJECT_SPEED_ACCELERATION_FACTOR;
+      const baseExtra = OBJECT_SPEED_ACCELERATION_FACTOR - 1;
+      const stepFactor = 1 + baseExtra / Math.pow(2, objectSpeedIncreaseCountRef.current);
+      currentRedObjectSpeedRef.current *= stepFactor;
       const newYellowSpeed = currentRedObjectSpeedRef.current / 2;
       setDisplayedRedObjectSpeed(currentRedObjectSpeedRef.current);
       setDisplayedYellowObjectSpeed(newYellowSpeed);
@@ -1299,29 +1486,28 @@ export default function Game() {
         else if (obj.type === 'yellow') obj.speed = newYellowSpeed;
       });
       lastObjectSpeedIncreaseScoreRef.current = score;
+      objectSpeedIncreaseCountRef.current += 1;
     }
 
-    // Base expected objects scaled from the current level's start score
-    const levelRelativeScore = Math.max(0, score - levelStartScoreRef.current);
-    // Suppress spawns during BOSS banner (pre-spawn) and while boss is active
-    let expectedObjectsBase = (bossRef.current?.isActive || bossSpawnScheduledRef.current) ? 0 : (1 + Math.floor(levelRelativeScore / 20));
-    // At the very start of Level 2, allow exactly one spawn
-    if (levelRef.current === 2 && level2InitialSpawnPendingRef.current) {
-      expectedObjectsBase = 1;
-    }
-    const effectiveObjectCount = objectsRef.current.length + pendingSpawnsRef.current.length + destroyedByBombCountRef.current;
-
-    if (!bossRef.current?.isActive && effectiveObjectCount < expectedObjectsBase) {
-        const numToSpawn = expectedObjectsBase - effectiveObjectCount;
-        // If capped to 1 for level 2 start, only enqueue one
-        const spawnCount = (levelRef.current === 2 && level2InitialSpawnPendingRef.current) ? Math.min(1, numToSpawn) : numToSpawn;
-        for (let i = 0; i < spawnCount; i++) {
-          addPendingSpawn(canvas, score, pendingSpawnsRef.current);
-        }
+    // Enemy spawn strictly by score thresholds; do not refill on kills
+    if (!bossRef.current?.isActive && !bossSpawnScheduledRef.current) {
+      // Initial spawn at score 0 if field is empty and nothing pending
+      if (score === 0 && objectsRef.current.length === 0 && pendingSpawnsRef.current.length === 0) {
+        addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+        lastEnemySpawnScoreRef.current = 0;
+      }
+      // Then spawn exactly one every ENEMY_SPAWN_SCORE_INTERVAL score
+      if (score > 0 && score % ENEMY_SPAWN_SCORE_INTERVAL === 0 && score !== lastEnemySpawnScoreRef.current) {
+        addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+        lastEnemySpawnScoreRef.current = score;
+      }
     }
 
     if (score > 0 && score % SHIELD_SPAWN_INTERVAL_SCORE === 0 && score !== lastShieldSpawnScoreRef.current && shieldsRef.current.length === 0 && pendingShieldSpawnsRef.current.length === 0) {
-      addPendingShieldSpawn(canvas, pendingShieldSpawnsRef.current);
+      if (Math.random() < HEART_SPAWN_CHANCE) {
+        addPendingShieldSpawn(canvas, pendingShieldSpawnsRef.current);
+      }
+      // record attempt regardless to prevent repeat rolling on same score
       lastShieldSpawnScoreRef.current = score;
     }
 
@@ -1338,7 +1524,10 @@ export default function Game() {
     }
 
     if (canSpawnBombConditions && shouldSpawnThisBomb) {
-      addBombCollectible(canvas, bombCollectiblesRef.current);
+      if (Math.random() < BOMB_SPAWN_CHANCE) {
+        addBombCollectible(canvas, bombCollectiblesRef.current);
+      }
+      // record attempt regardless to prevent repeat rolling on same score
       lastBombSpawnScoreRef.current = score;
     }
 
@@ -1355,7 +1544,10 @@ export default function Game() {
     }
 
     if (canSpawnHourglassConditions && shouldSpawnThisHourglass) {
-      addHourglassCollectible(canvas, hourglassCollectiblesRef.current);
+      if (Math.random() < HOURGLASS_SPAWN_CHANCE) {
+        addHourglassCollectible(canvas, hourglassCollectiblesRef.current);
+      }
+      // record attempt regardless to prevent repeat rolling on same score
       lastHourglassSpawnScoreRef.current = score;
     }
     
@@ -1398,6 +1590,8 @@ export default function Game() {
         setDisplayedScoreSpeed(1000 / INITIAL_SCORE_INTERVAL);
         // center boss
         startBoss(bossRef.current, canvasNow.width / 2, canvasNow.height / 2, Date.now());
+        // switch to boss music
+        void playBgm('boss');
         bossActiveRef.current = true;
       }, 3000);
     }
@@ -1411,11 +1605,19 @@ export default function Game() {
     const tick = () => {
       const now = Date.now();
       if (bossRef.current.isActive) {
+        // ensure we only play a single shot sound per spawn batch in this tick
+        let playedBossShotThisTick = false;
         const bossResult = updateBoss(
           bossRef.current,
           now,
           objectsRef.current,
-          (x, y, dx, dy, speed, color) => ({ id: 'boss-' + Date.now() + Math.random(), x, y, dx, dy, speed, color, size: OBJECT_SIZE, type: 'red', isBossProjectile: true }),
+          (x, y, dx, dy, speed, color) => {
+            if (!playedBossShotThisTick) {
+              try { new Audio('/sounds/bossShot.mp3').play(); } catch {}
+              playedBossShotThisTick = true;
+            }
+            return { id: 'boss-' + Date.now() + Math.random(), x, y, dx, dy, speed, color, size: OBJECT_SIZE, type: 'red', isBossProjectile: true };
+          },
           mousePos,
           canvas
         );
@@ -1438,6 +1640,10 @@ export default function Game() {
         level2InitialSpawnPendingRef.current = true;
         bossSpawnScheduledRef.current = false;
         levelStartScoreRef.current = score; // reset scaling so Level 2 starts like a new game
+        // Reset decaying acceleration counter for Level 2
+        objectSpeedIncreaseCountRef.current = 0;
+        // Reset enemy spawn cadence to avoid immediate duplicate spawn
+        lastEnemySpawnScoreRef.current = score - (score % 20) - 20;
         // Pause game for 3 seconds and show banner
         levelTextUntilRef.current = Date.now() + 3000;
         globalPauseUntilRef.current = levelTextUntilRef.current;

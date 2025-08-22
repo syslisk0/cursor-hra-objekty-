@@ -14,6 +14,7 @@ export type UserRecord = {
     deathCircleLevel?: number; // 0-5
     timelapseLevel?: number;   // 0-5
     blackHoleLevel?: number;   // 0-5
+    heartmanLevel?: number;    // 0-5 (pasivní – přidává startovní srdíčka)
   };
   abilitySlots?: number; // počet slotů pro equip
   equippedAbilities?: string[]; // klíče schopností
@@ -32,7 +33,7 @@ export async function ensureUserDocument(user: User): Promise<void> {
       coins: 0,
       ownedSkins: ['green'],
       selectedSkinId: 'green',
-      abilities: { deathCircleLevel: 0, timelapseLevel: 0, blackHoleLevel: 0 },
+      abilities: { deathCircleLevel: 0, timelapseLevel: 0, blackHoleLevel: 0, heartmanLevel: 0 },
       abilitySlots: 1,
       equippedAbilities: [],
       createdAt: serverTimestamp(),
@@ -59,6 +60,7 @@ export async function getUser(uid: string): Promise<UserRecord | null> {
       deathCircleLevel: typeof (data.abilities as any)?.deathCircleLevel === 'number' ? (data.abilities as any).deathCircleLevel : 0,
       timelapseLevel: typeof (data.abilities as any)?.timelapseLevel === 'number' ? (data.abilities as any).timelapseLevel : 0,
       blackHoleLevel: typeof (data.abilities as any)?.blackHoleLevel === 'number' ? (data.abilities as any).blackHoleLevel : 0,
+      heartmanLevel: typeof (data.abilities as any)?.heartmanLevel === 'number' ? (data.abilities as any).heartmanLevel : 0,
     },
     abilitySlots: typeof (data.abilitySlots as any) === 'number' ? (data.abilitySlots as any) : 1,
     equippedAbilities: Array.isArray((data.equippedAbilities as any)) ? (data.equippedAbilities as any) : [],
@@ -112,7 +114,7 @@ export async function updateBestScoreIfHigher(uid: string, email: string | null,
   const ref = doc(db, 'users', uid);
   const snap = await getDoc(ref);
   if (!snap.exists()) {
-    await setDoc(ref, { uid, email, bestScore: score, coins: 0, ownedSkins: ['green'], selectedSkinId: 'green', abilities: { deathCircleLevel: 0, timelapseLevel: 0, blackHoleLevel: 0 }, abilitySlots: 1, equippedAbilities: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    await setDoc(ref, { uid, email, bestScore: score, coins: 0, ownedSkins: ['green'], selectedSkinId: 'green', abilities: { deathCircleLevel: 0, timelapseLevel: 0, blackHoleLevel: 0, heartmanLevel: 0 }, abilitySlots: 1, equippedAbilities: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
     return { updated: true, newBest: score };
   }
   const current = (snap.data() as Partial<UserRecord>).bestScore ?? 0;

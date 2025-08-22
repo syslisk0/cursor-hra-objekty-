@@ -57,7 +57,11 @@ import {
   DAMAGE_SLOW_FACTOR,
   DAMAGE_PULSE_MAX_ALPHA,
   DAMAGE_PULSE_MIN_ALPHA,
-  DAMAGE_PULSE_FREQUENCY
+  DAMAGE_PULSE_FREQUENCY,
+  ENEMY_SPAWN_SCORE_INTERVAL,
+  HEART_SPAWN_CHANCE,
+  BOMB_SPAWN_CHANCE,
+  HOURGLASS_SPAWN_CHANCE
 } from './constants';
 import {
   createNewGameObject,
@@ -100,6 +104,8 @@ export function useGame(): UseGameReturn {
   const lastScoreAccelerationTimeRef = useRef<number>(0);
   const currentRedObjectSpeedRef = useRef<number>(INITIAL_RED_OBJECT_SPEED);
   const lastObjectSpeedIncreaseScoreRef = useRef<number>(0);
+  const objectSpeedIncreaseCountRef = useRef<number>(0);
+  const lastEnemySpawnScoreRef = useRef<number>(-ENEMY_SPAWN_SCORE_INTERVAL);
   const lastShieldSpawnScoreRef = useRef<number>(0);
   const lastBombSpawnScoreRef = useRef<number>(0);
   const lastHourglassSpawnScoreRef = useRef<number>(0);
@@ -145,6 +151,8 @@ export function useGame(): UseGameReturn {
     gameTimeStartRef.current = Date.now();
     lastScoreAccelerationTimeRef.current = 0;
     lastObjectSpeedIncreaseScoreRef.current = 0;
+    objectSpeedIncreaseCountRef.current = 0;
+    lastEnemySpawnScoreRef.current = -ENEMY_SPAWN_SCORE_INTERVAL;
     lastShieldSpawnScoreRef.current = 0;
     lastBombSpawnScoreRef.current = 0;
     lastHourglassSpawnScoreRef.current = 0;
@@ -309,9 +317,13 @@ export function useGame(): UseGameReturn {
         const d = Math.hypot(bomb.x - mousePos.x, bomb.y - mousePos.y);
         if (d < bomb.size + PLAYER_RADIUS) {
           activeExplosionsRef.current.push(createExplosion(bomb.x, bomb.y));
-          const initialCount = objectsRef.current.length;
+          // Determine destroyed enemies and play death sound for each
+          const toDestroy = objectsRef.current.filter(obj => Math.hypot(obj.x - bomb.x, obj.y - bomb.y) < BOMB_EXPLOSION_RADIUS);
+          toDestroy.forEach(() => {
+            try { new Audio('/sounds/enemydeath.mp3').play(); } catch {}
+          });
           objectsRef.current = objectsRef.current.filter(obj => Math.hypot(obj.x - bomb.x, obj.y - bomb.y) >= BOMB_EXPLOSION_RADIUS);
-          destroyedByBombCountRef.current += initialCount - objectsRef.current.length;
+          destroyedByBombCountRef.current += toDestroy.length;
           bombCollectiblesRef.current = bombCollectiblesRef.current.filter(b => b.id !== bomb.id);
         }
       });
@@ -474,26 +486,41 @@ export function useGame(): UseGameReturn {
     setupScoreInterval();
 
     if (score - lastObjectSpeedIncreaseScoreRef.current >= OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD) {
-      currentRedObjectSpeedRef.current *= OBJECT_SPEED_ACCELERATION_FACTOR;
+      // Decaying acceleration: halve extra every 3 thresholds (n = number of past increases)
+      // stepFactor = 1 + baseExtra / 2^{floor(n/3)}
+      const baseExtra = OBJECT_SPEED_ACCELERATION_FACTOR - 1;
+      const n = objectSpeedIncreaseCountRef.current;
+      const stepFactor = 1 + baseExtra / Math.pow(2, Math.floor(n / 3));
+      currentRedObjectSpeedRef.current *= stepFactor;
       const newYellowSpeed = currentRedObjectSpeedRef.current / 2;
       setDisplayedRedObjectSpeed(currentRedObjectSpeedRef.current);
       setDisplayedYellowObjectSpeed(newYellowSpeed);
       objectsRef.current.forEach(obj => { if (obj.type === 'red') obj.speed = currentRedObjectSpeedRef.current; else if (obj.type === 'yellow') obj.speed = newYellowSpeed; });
       lastObjectSpeedIncreaseScoreRef.current = score;
+      objectSpeedIncreaseCountRef.current += 1;
     }
 
-    const expectedObjectsBase = 1 + Math.floor(score / 20);
-    const effectiveObjectCount = objectsRef.current.length + pendingSpawnsRef.current.length + destroyedByBombCountRef.current;
+    // Initial spawn at score 0 if nothing pending/alive
+    if (score === 0 && objectsRef.current.length === 0 && pendingSpawnsRef.current.length === 0) {
+      addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+      lastEnemySpawnScoreRef.current = 0;
+    }
 
-    if (effectiveObjectCount < expectedObjectsBase) {
-      const numToSpawn = expectedObjectsBase - effectiveObjectCount;
-      for (let i = 0; i < numToSpawn; i++) addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+    // Spawn exactly one enemy every ENEMY_SPAWN_SCORE_INTERVAL score (no replacement when killed)
+    if (score > 0 && score % ENEMY_SPAWN_SCORE_INTERVAL === 0 && score !== lastEnemySpawnScoreRef.current) {
+      addPendingSpawn(canvas, score, pendingSpawnsRef.current);
+      lastEnemySpawnScoreRef.current = score;
     }
 
     // Hearts spawn (same cadence as shields)
     if (score > 0 && score % SHIELD_SPAWN_INTERVAL_SCORE === 0 && score !== lastShieldSpawnScoreRef.current && shieldsRef.current.length === 0 && pendingShieldSpawnsRef.current.length === 0) {
-      addPendingShieldSpawn(canvas, pendingShieldSpawnsRef.current);
-      lastShieldSpawnScoreRef.current = score;
+      if (Math.random() < HEART_SPAWN_CHANCE) {
+        addPendingShieldSpawn(canvas, pendingShieldSpawnsRef.current);
+        lastShieldSpawnScoreRef.current = score;
+      } else {
+        // Even if chance fails, ensure we don't repeatedly roll at the same score
+        lastShieldSpawnScoreRef.current = score;
+      }
     }
 
     // Bombs spawning
@@ -502,7 +529,13 @@ export function useGame(): UseGameReturn {
     if (score === BOMB_FIRST_SPAWN_SCORE) shouldSpawnThisBomb = true;
     else if (score === BOMB_SECOND_SPAWN_SCORE) shouldSpawnThisBomb = true;
     else if (score > BOMB_SECOND_SPAWN_SCORE && (score - BOMB_SECOND_SPAWN_SCORE) % BOMB_SUBSEQUENT_SPAWN_INTERVAL === 0) shouldSpawnThisBomb = true;
-    if (canSpawnBombConditions && shouldSpawnThisBomb) { addBombCollectible(canvas, bombCollectiblesRef.current); lastBombSpawnScoreRef.current = score; }
+    if (canSpawnBombConditions && shouldSpawnThisBomb) {
+      if (Math.random() < BOMB_SPAWN_CHANCE) {
+        addBombCollectible(canvas, bombCollectiblesRef.current);
+      }
+      // record attempt so we don't retry this exact score
+      lastBombSpawnScoreRef.current = score;
+    }
 
     // Hourglass spawning
     const canSpawnHourglassConditions = hourglassCollectiblesRef.current.length === 0 && score !== lastHourglassSpawnScoreRef.current && score > 0;
@@ -510,7 +543,13 @@ export function useGame(): UseGameReturn {
     if (score === HOURGLASS_FIRST_SPAWN_SCORE) shouldSpawnThisHourglass = true;
     else if (score === HOURGLASS_SECOND_SPAWN_SCORE) shouldSpawnThisHourglass = true;
     else if (score > HOURGLASS_SECOND_SPAWN_SCORE && (score - HOURGLASS_SECOND_SPAWN_SCORE) % HOURGLASS_SUBSEQUENT_SPAWN_INTERVAL === 0) shouldSpawnThisHourglass = true;
-    if (canSpawnHourglassConditions && shouldSpawnThisHourglass) { addHourglassCollectible(canvas, hourglassCollectiblesRef.current); lastHourglassSpawnScoreRef.current = score; }
+    if (canSpawnHourglassConditions && shouldSpawnThisHourglass) {
+      if (Math.random() < HOURGLASS_SPAWN_CHANCE) {
+        addHourglassCollectible(canvas, hourglassCollectiblesRef.current);
+      }
+      // record attempt so we don't retry this exact score
+      lastHourglassSpawnScoreRef.current = score;
+    }
     
     return () => { if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current); scoreIntervalRef.current = null; };
   }, [gameState, score, addPendingSpawn]);
