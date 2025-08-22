@@ -319,7 +319,7 @@ export default function Game() {
     } else {
         setMousePos({ x: 400, y: 300 });
     }
-  }, [heartmanLevel]);
+  }, []);
 
   const startGame = useCallback(() => {
     resetGameValues();
