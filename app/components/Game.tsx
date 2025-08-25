@@ -6,8 +6,9 @@ import GameCanvas from './GameCanvas';
 import GameOverScreen from './GameOverScreen';
 import { drawEnemy } from './EnemyDraw';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../lib/firebase';
-import { updateBestScoreIfHigher, getUser, addCoins } from '../services/userService';
+import { auth, db } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { updateBestScoreIfHigher, addCoins } from '../services/userService';
 import { getSkinColor, SKINS } from './skins';
 import { drawWatermelon, WATERMELON_SEED } from './skinRenderers';
 import {
@@ -170,6 +171,7 @@ export default function Game() {
   const [heartmanLevel, setHeartmanLevel] = useState<number>(0);
   const [timelapseEquipped, setTimelapseEquipped] = useState<boolean>(false);
   const [deathCircleEquipped, setDeathCircleEquipped] = useState<boolean>(false);
+  const [heartmanEquipped, setHeartmanEquipped] = useState<boolean>(false);
   const [deathCircleCooldownLeftMs, setDeathCircleCooldownLeftMs] = useState<number>(0);
   const [blackHoleLevel, setBlackHoleLevel] = useState<number>(0);
   const [blackHoleEquipped, setBlackHoleEquipped] = useState<boolean>(false);
@@ -288,7 +290,7 @@ export default function Game() {
     activeExplosionsRef.current = [];
     damageAnimationsRef.current = [];
     animationParticlesRef.current.clear();
-    setHearts(Math.max(1, 1 + heartmanLevel));
+    setHearts(Math.max(1, 1 + (heartmanEquipped ? heartmanLevel : 0)));
     invulnerableUntilRef.current = 0;
     currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
     currentRedObjectSpeedRef.current = INITIAL_RED_OBJECT_SPEED;
@@ -319,7 +321,7 @@ export default function Game() {
     } else {
         setMousePos({ x: 400, y: 300 });
     }
-  }, []);
+  }, [heartmanLevel, heartmanEquipped]);
 
   const startGame = useCallback(() => {
     resetGameValues();
@@ -491,24 +493,32 @@ export default function Game() {
   }, [stopBgm]);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    let unsubUser: (() => void) | null = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
       setCurrentUser(u ? { uid: u.uid, email: u.email } : null);
+      // cleanup previous user subscription
+      if (unsubUser) { unsubUser(); unsubUser = null; }
       if (u) {
         try {
-          const rec = await getUser(u.uid);
-          // Skins vypnuty → vždy zelená
-          setSelectedSkinId('green');
-          setPlayerColor(PLAYER_DEFAULT_COLOR);
-          // Načti schopnosti
-          setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
-          setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
-          setHeartmanLevel(rec?.abilities?.heartmanLevel || 0);
-          // Black Hole removed
-          setBlackHoleLevel(0);
-          setTimelapseEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('timelapse') : false);
-          setDeathCircleEquipped(Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]).includes('deathCircle') : false);
-          // Black Hole removed
-          setBlackHoleEquipped(false);
+          const ref = doc(db, 'users', u.uid);
+          unsubUser = onSnapshot(ref, (snap) => {
+            const rec = snap.data() as any;
+            // Skins vypnuty → vždy zelená
+            setSelectedSkinId('green');
+            setPlayerColor(PLAYER_DEFAULT_COLOR);
+            // Načti schopnosti
+            setDeathCircleLevel(rec?.abilities?.deathCircleLevel || 0);
+            setTimelapseLevel(rec?.abilities?.timelapseLevel || 0);
+            setHeartmanLevel(rec?.abilities?.heartmanLevel || 0);
+            // Black Hole removed
+            setBlackHoleLevel(0);
+            const equipped = Array.isArray(rec?.equippedAbilities) ? (rec!.equippedAbilities as any[]) : [];
+            setTimelapseEquipped(equipped.includes('timelapse'));
+            setDeathCircleEquipped(equipped.includes('deathCircle'));
+            setHeartmanEquipped(equipped.includes('heartman'));
+            // Black Hole removed
+            setBlackHoleEquipped(false);
+          });
         } catch (_) {
           setSelectedSkinId('green');
           setPlayerColor(PLAYER_DEFAULT_COLOR);
@@ -518,6 +528,7 @@ export default function Game() {
           setBlackHoleLevel(0);
           setTimelapseEquipped(false);
           setDeathCircleEquipped(false);
+          setHeartmanEquipped(false);
           setBlackHoleEquipped(false);
         }
       } else {
@@ -529,10 +540,11 @@ export default function Game() {
         setBlackHoleLevel(0);
         setTimelapseEquipped(false);
         setDeathCircleEquipped(false);
+        setHeartmanEquipped(false);
         setBlackHoleEquipped(false);
       }
     });
-    return () => unsub();
+    return () => { if (unsubUser) unsubUser(); unsubAuth(); };
   }, []);
 
 
