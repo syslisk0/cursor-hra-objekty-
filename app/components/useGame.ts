@@ -98,6 +98,8 @@ export function useGame(): UseGameReturn {
   const activeExplosionsRef = useRef<ActiveExplosion[]>([]);
   const gameLoopRef = useRef<number | null>(null);
   const scoreIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Reusable audio for health loss (initialized on user gesture when starting the game)
+  const healthLoseAudioRef = useRef<HTMLAudioElement | null>(null);
   
   const currentScoreIntervalMsRef = useRef<number>(INITIAL_SCORE_INTERVAL);
   const gameTimeStartRef = useRef<number>(0);
@@ -432,7 +434,16 @@ export function useGame(): UseGameReturn {
             return true;
           }
           if (hearts > 0) {
+            const willBe = Math.max(0, hearts - 1);
             setHearts(prev => Math.max(0, prev - 1));
+            // Only play sound on non-lethal hit
+            if (willBe > 0) {
+              try {
+                const a = healthLoseAudioRef.current;
+                if (a) { a.currentTime = 0; a.play(); }
+                else { new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3').play(); }
+              } catch {}
+            }
             setDamageSlowEffect({ isActive: true, startTime: Date.now(), duration: DAMAGE_SLOW_DURATION, slowFactor: DAMAGE_SLOW_FACTOR });
             invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
             objectsRef.current.forEach(o => {
@@ -556,7 +567,21 @@ export function useGame(): UseGameReturn {
 
   return {
     gameState,
-    startGame: () => { resetGameValues(); setGameState('playing'); },
+    startGame: () => {
+      resetGameValues();
+      // Initialize and unlock audio on user gesture
+      if (!healthLoseAudioRef.current) {
+        try {
+          const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
+          a.preload = 'auto';
+          a.volume = 1.0;
+          healthLoseAudioRef.current = a;
+          // Attempt to unlock by playing and pausing immediately
+          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+        } catch {}
+      }
+      setGameState('playing');
+    },
     backToMenu: () => setGameState('menu'),
     score,
     displayedScoreSpeed,

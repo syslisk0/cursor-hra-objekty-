@@ -105,6 +105,8 @@ export default function Game() {
   const damageAnimationsRef = useRef<DamageAnimation[]>([]);
   const animationParticlesRef = useRef<Map<string, AnimationParticle[]>>(new Map());
   const deathSoundRef = useRef<HTMLAudioElement | null>(null);
+  const healthLoseSoundRef = useRef<HTMLAudioElement | null>(null);
+  const sfxHealthLoseBufferRef = useRef<AudioBuffer | null>(null);
   const gameLoopRef = useRef<number | null>(null);
   const scoreIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -328,6 +330,16 @@ export default function Game() {
     // leaving developer mode for normal play
     devModeRef.current = false;
     devImmortalRef.current = false;
+    // Initialize HTMLAudio fallback on user gesture (WebAudio loads lazily)
+    if (!healthLoseSoundRef.current) {
+      try {
+        const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
+        a.preload = 'auto';
+        a.volume = 1.0;
+        healthLoseSoundRef.current = a;
+        a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+      } catch { healthLoseSoundRef.current = null; }
+    }
     setGameState('playing');
   }, [resetGameValues]);
 
@@ -341,6 +353,16 @@ export default function Game() {
       resetGameValues();
       devModeRef.current = false;
       devImmortalRef.current = false;
+      // Initialize HTMLAudio fallback on user gesture (WebAudio loads lazily)
+      if (!healthLoseSoundRef.current) {
+        try {
+          const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
+          a.preload = 'auto';
+          a.volume = 1.0;
+          healthLoseSoundRef.current = a;
+          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+        } catch { healthLoseSoundRef.current = null; }
+      }
       setGameState('playing');
       setTransitionOpaque(false);
     }, 320);
@@ -359,18 +381,6 @@ export default function Game() {
     }
   }, [resetGameValues]);
 
-  const endGame = useCallback(() => {
-    setGameState('gameOver');
-  }, []);
-
-  const backToMenu = useCallback(() => {
-    // leaving developer mode when going back to menu
-    devModeRef.current = false;
-    devImmortalRef.current = false;
-    setGameState('menu');
-  }, []);
-
-  // Create/ensure AudioContext on demand (user gesture friendly)
   const ensureAudioContext = useCallback(async () => {
     if (typeof window === 'undefined') return null;
     if (!audioCtxRef.current) {
@@ -392,6 +402,19 @@ export default function Game() {
     return audioCtxRef.current;
   }, []);
 
+  const endGame = useCallback(() => {
+    setGameState('gameOver');
+  }, []);
+
+  const backToMenu = useCallback(() => {
+    // leaving developer mode when going back to menu
+    devModeRef.current = false;
+    devImmortalRef.current = false;
+    setGameState('menu');
+  }, []);
+
+  
+
   // Decode and cache buffer
   const loadBgmBuffer = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss') => {
     if (bgmBuffersRef.current.has(key)) return bgmBuffersRef.current.get(key)!;
@@ -410,6 +433,44 @@ export default function Game() {
     bgmBuffersRef.current.set(key, buf);
     return buf;
   }, [ensureAudioContext]);
+
+  // Load one-shot SFX buffer (health lose)
+  const loadHealthLoseBuffer = useCallback(async () => {
+    if (sfxHealthLoseBufferRef.current) return sfxHealthLoseBufferRef.current;
+    const ctx = await ensureAudioContext();
+    if (!ctx) return null;
+    const url = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3';
+    try {
+      const resp = await fetch(url);
+      const arr = await resp.arrayBuffer();
+      const buf = await ctx.decodeAudioData(arr.slice(0));
+      sfxHealthLoseBufferRef.current = buf;
+      return buf;
+    } catch {
+      return null;
+    }
+  }, [ensureAudioContext]);
+
+  const playHealthLose = useCallback(async () => {
+    // Try Web Audio one-shot first
+    const ctx = await ensureAudioContext();
+    const buf = await loadHealthLoseBuffer();
+    if (ctx && buf) {
+      try {
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        src.connect(ctx.destination);
+        src.start(0);
+        return;
+      } catch { /* fall back below */ }
+    }
+    // Fallback to HTMLAudio element
+    try {
+      const a = healthLoseSoundRef.current;
+      if (a) { a.currentTime = 0; void a.play(); }
+      else { void new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3').play(); }
+    } catch { /* ignore */ }
+  }, [ensureAudioContext, loadHealthLoseBuffer]);
 
   const stopBgm = useCallback(() => {
     try {
@@ -1263,6 +1324,7 @@ export default function Game() {
             }
             // Otherwise, consume one heart and apply slow + knockback
             setHearts(prev => Math.max(0, prev - 1));
+            playHealthLose();
             setDamageSlowEffect({
               isActive: true,
               startTime: Date.now(),
@@ -1406,6 +1468,7 @@ export default function Game() {
                   endGame();
                 } else {
                   setHearts(prev => Math.max(0, prev - 1));
+                  playHealthLose();
                   setDamageSlowEffect({
                     isActive: true,
                     startTime: Date.now(),
