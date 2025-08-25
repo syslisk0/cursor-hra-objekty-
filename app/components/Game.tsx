@@ -1527,7 +1527,7 @@ export default function Game() {
       scoreIntervalRef.current = setInterval(() => {
         setScore(prev => prev + 1);
         const elapsedTime = Date.now() - gameTimeStartRef.current;
-        const inBossPrezoneNow = (score >= 900 && score < 1000);
+        const inBossPrezoneNow = (score >= 450 && score < 500);
         if (!inBossPrezoneNow && elapsedTime - lastScoreAccelerationTimeRef.current >= SCORE_ACCELERATION_TIME_THRESHOLD) {
           const newInterval = Math.max(MIN_SCORE_INTERVAL, currentScoreIntervalMsRef.current * SCORE_ACCELERATION_FACTOR);
           if (newInterval !== currentScoreIntervalMsRef.current) {
@@ -1544,7 +1544,7 @@ export default function Game() {
 
     setupScoreInterval();
 
-    const inBossPrezone = score >= 900 && score < 1000;
+    const inBossPrezone = score >= 450 && score < 500;
     if (!inBossPrezone && score - lastObjectSpeedIncreaseScoreRef.current >= OBJECT_SPEED_ACCELERATION_SCORE_THRESHOLD) {
       const baseExtra = OBJECT_SPEED_ACCELERATION_FACTOR - 1;
       const stepFactor = 1 + baseExtra / Math.pow(2, objectSpeedIncreaseCountRef.current);
@@ -1628,13 +1628,13 @@ export default function Game() {
     };
   }, [gameState, score, addPendingSpawn, timelapseEquipped]);
 
-  // Boss trigger when reaching score 1000
+  // Boss trigger when reaching score 500
   useEffect(() => {
     if (gameState !== 'playing') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const now = Date.now();
-    if (!bossRef.current.isActive && !bossSpawnScheduledRef.current && score >= 1000 && levelRef.current === 1) {
+    if (!bossRef.current.isActive && !bossSpawnScheduledRef.current && score >= 500 && levelRef.current === 1) {
       // show BOSS banner for 3 seconds first
       bossTextUntilRef.current = now + 3000;
       bossSpawnScheduledRef.current = true;
