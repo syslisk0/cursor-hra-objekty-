@@ -188,16 +188,56 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
 
       {showInfoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-md w-full text-center">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl max-w-xl w-full text-left overflow-y-auto max-h-[90vh]">
             <h2 className="text-2xl sm:text-3xl font-bold mb-6 text-white">{t('menu.infoTitle')}</h2>
             <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP1')}</p>
-            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP2')}</p>
-            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP3')}</p>
-            <p className="text-base sm:text-lg mb-4 text-gray-300">{t('menu.infoP4')}</p>
-            <p className="text-base sm:text-lg mb-4 text-green-300 font-semibold">{t('menu.rewards')}</p>
+            <p className="text-base sm:text-lg mb-6 text-gray-300">{t('menu.infoP2')}</p>
+
+            <div className="space-y-5">
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.controlsTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.controlsBody')}</p>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.scoringTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.scoringBody')}</p>
+                <p className="text-green-300 font-semibold mt-2">{t('menu.rewards')}</p>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.abilitiesTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.abilitiesBody')}</p>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.collectiblesTitle')}</h3>
+                <ul className="list-disc list-inside space-y-1 text-gray-300">
+                  <li>{t('menu.info.collectibles.bomb')}</li>
+                  <li>{t('menu.info.collectibles.heart')}</li>
+                  <li>{t('menu.info.collectibles.hourglass')}</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.levelsTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.levelsBody')}</p>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.bossTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.bossBody')}</p>
+              </section>
+
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.tipsTitle')}</h3>
+                <p className="text-gray-300">{t('menu.info.tipsBody')}</p>
+              </section>
+            </div>
+
             <button
               onClick={toggleInfoModal}
-              className="mt-6 px-6 py-3 bg-red-500 rounded-lg hover:bg-red-600 text-lg sm:text-xl font-semibold transition-colors cursor-pointer"
+              className="mt-6 px-6 py-3 bg-red-500 rounded-lg hover:bg-red-600 text-lg sm:text-xl font-semibold transition-colors cursor-pointer w-full"
             >
               {t('menu.close')}
             </button>
