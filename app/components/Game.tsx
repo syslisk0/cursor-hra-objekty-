@@ -160,6 +160,8 @@ export default function Game() {
     duration: DAMAGE_SLOW_DURATION,
     slowFactor: DAMAGE_SLOW_FACTOR
   });
+  // Background music mute state
+  const [bgmMuted, setBgmMuted] = useState<boolean>(false);
   const invulnerableUntilRef = useRef<number>(0);
   // Developer mode flag and immortality toggle
   const devModeRef = useRef<boolean>(false);
@@ -255,7 +257,10 @@ export default function Game() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const audio = new Audio('/sounds/death.mp3');
+      const audio = new Audio();
+      const can = audio.canPlayType ? audio.canPlayType('audio/mpeg') : '';
+      if (!can) { deathSoundRef.current = null; return; }
+      audio.src = '/sounds/death.mp3';
       audio.preload = 'auto';
       audio.volume = 1.0;
       deathSoundRef.current = audio;
@@ -333,11 +338,16 @@ export default function Game() {
     // Initialize HTMLAudio fallback on user gesture (WebAudio loads lazily)
     if (!healthLoseSoundRef.current) {
       try {
-        const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
-        a.preload = 'auto';
-        a.volume = 1.0;
-        healthLoseSoundRef.current = a;
-        a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+        const a = new Audio();
+        const can = a.canPlayType ? a.canPlayType('audio/mpeg') : '';
+        if (!can) { healthLoseSoundRef.current = null; }
+        else {
+          a.src = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3';
+          a.preload = 'auto';
+          a.volume = 1.0;
+          healthLoseSoundRef.current = a;
+          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+        }
       } catch { healthLoseSoundRef.current = null; }
     }
     setGameState('playing');
@@ -356,11 +366,16 @@ export default function Game() {
       // Initialize HTMLAudio fallback on user gesture (WebAudio loads lazily)
       if (!healthLoseSoundRef.current) {
         try {
-          const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
-          a.preload = 'auto';
-          a.volume = 1.0;
-          healthLoseSoundRef.current = a;
-          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+          const a = new Audio();
+          const can = a.canPlayType ? a.canPlayType('audio/mpeg') : '';
+          if (!can) { healthLoseSoundRef.current = null; }
+          else {
+            a.src = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3';
+            a.preload = 'auto';
+            a.volume = 1.0;
+            healthLoseSoundRef.current = a;
+            a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+          }
         } catch { healthLoseSoundRef.current = null; }
       }
       setGameState('playing');
@@ -388,7 +403,8 @@ export default function Game() {
         const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
         audioCtxRef.current = ctx;
         const gain = ctx.createGain();
-        gain.gain.value = 0.5; // default volume
+        // respect current mute state
+        gain.gain.value = bgmMuted ? 0 : 0.5; // default volume when not muted
         gain.connect(ctx.destination);
         bgmGainRef.current = gain;
       } catch {
@@ -400,6 +416,27 @@ export default function Game() {
       try { await ctx.resume(); } catch {}
     }
     return audioCtxRef.current;
+  }, [bgmMuted]);
+
+  // Load initial mute state from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('bgmMuted');
+      if (saved === '1') setBgmMuted(true);
+      if (saved === '0') setBgmMuted(false);
+    } catch {}
+  }, []);
+
+  // Persist mute state and apply to gain if available
+  useEffect(() => {
+    try { localStorage.setItem('bgmMuted', bgmMuted ? '1' : '0'); } catch {}
+    if (bgmGainRef.current) {
+      bgmGainRef.current.gain.value = bgmMuted ? 0 : 0.5;
+    }
+  }, [bgmMuted]);
+
+  const toggleBgmMuted = useCallback(() => {
+    setBgmMuted(m => !m);
   }, []);
 
   const endGame = useCallback(() => {
@@ -452,6 +489,7 @@ export default function Game() {
   }, [ensureAudioContext]);
 
   const playHealthLose = useCallback(async () => {
+    if (bgmMuted) return;
     // Try Web Audio one-shot first
     const ctx = await ensureAudioContext();
     const buf = await loadHealthLoseBuffer();
@@ -468,9 +506,15 @@ export default function Game() {
     try {
       const a = healthLoseSoundRef.current;
       if (a) { a.currentTime = 0; void a.play(); }
-      else { void new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3').play(); }
+      else {
+        const el = new Audio();
+        const can = el.canPlayType ? el.canPlayType('audio/mpeg') : '';
+        if (!can) return;
+        el.src = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3';
+        void el.play();
+      }
     } catch { /* ignore */ }
-  }, [ensureAudioContext, loadHealthLoseBuffer]);
+  }, [ensureAudioContext, loadHealthLoseBuffer, bgmMuted]);
 
   const stopBgm = useCallback(() => {
     try {
@@ -613,7 +657,7 @@ export default function Game() {
     if (gameState === 'gameOver') {
       // Play death sound
       try {
-        if (deathSoundRef.current) {
+        if (deathSoundRef.current && !bgmMuted) {
           deathSoundRef.current.currentTime = 0;
           void deathSoundRef.current.play();
         }
@@ -1756,9 +1800,13 @@ export default function Game() {
   if (gameState === 'menu') {
     return (
       <>
-        <GameMenu onStartGame={startGameWithTransition} onStartDeveloper={startDeveloper} />
+        <GameMenu onStartGame={startGameWithTransition} onStartDeveloper={startDeveloper} isMuted={bgmMuted} onToggleMute={toggleBgmMuted} />
         {showTransitionOverlay && (
-          <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
+          <div
+            className={`fixed inset-0 z-50 transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`}
+          >
+            <div className="absolute inset-0 bg-black" />
+          </div>
         )}
       </>
     );

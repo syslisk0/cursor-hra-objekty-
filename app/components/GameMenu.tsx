@@ -13,9 +13,11 @@ type CoinsState = { coins: number; uid: string | null; username?: string | null 
 interface GameMenuProps {
   onStartGame: () => void;
   onStartDeveloper: (targetScore?: number) => void;
+  isMuted: boolean;
+  onToggleMute: () => void;
 }
 
-export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProps) {
+export default function GameMenu({ onStartGame, onStartDeveloper, isMuted, onToggleMute }: GameMenuProps) {
   const { lang, setLang, t } = useLanguage();
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
@@ -63,34 +65,47 @@ export default function GameMenu({ onStartGame, onStartDeveloper }: GameMenuProp
         <div className="absolute top-1/2 left-1/2 w-60 h-60 bg-green-500/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '4s' }}></div>
       </div>
 
-      {/* Language switcher top-right */}
+      {/* Language + Sound controls top-right */}
       <div className="absolute top-4 right-4 z-20">
-        <div className="relative">
+        <div className="flex items-center gap-2">
+          {/* Mute toggle */}
           <button
-            className="flex items-center gap-2 px-3 py-2 bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 rounded-lg cursor-pointer"
-            onClick={() => setShowLangMenu(prev => !prev)}
+            className="relative flex items-center justify-center w-10 h-10 bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 rounded-lg cursor-pointer"
+            onClick={onToggleMute}
+            title={isMuted ? 'Zapnout hudbu' : 'Vypnout hudbu'}
+            aria-label={isMuted ? 'Unmute music' : 'Mute music'}
           >
-            <span className="text-xl">{lang === 'cs' ? '🇨🇿' : '🇬🇧'}</span>
-            <span className="text-sm text-gray-300 uppercase">{lang}</span>
+            <span className="text-lg">{isMuted ? '🔇' : '🔊'}</span>
           </button>
-          {showLangMenu && (
-            <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-white/10 rounded-lg shadow-lg">
-              <button
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
-                onClick={() => { setLang('cs'); setShowLangMenu(false); }}
-              >
-                <span>🇨🇿</span>
-                <span>Čeština</span>
-              </button>
-              <button
-                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
-                onClick={() => { setLang('en'); setShowLangMenu(false); }}
-              >
-                <span>🇬🇧</span>
-                <span>English</span>
-              </button>
-            </div>
-          )}
+
+          {/* Language switcher */}
+          <div className="relative">
+            <button
+              className="flex items-center gap-2 px-3 py-2 bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 rounded-lg cursor-pointer"
+              onClick={() => setShowLangMenu(prev => !prev)}
+            >
+              <span className="text-xl">{lang === 'cs' ? '🇨🇿' : '🇬🇧'}</span>
+              <span className="text-sm text-gray-300 uppercase">{lang}</span>
+            </button>
+            {showLangMenu && (
+              <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-white/10 rounded-lg shadow-lg">
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                  onClick={() => { setLang('cs'); setShowLangMenu(false); }}
+                >
+                  <span>🇨🇿</span>
+                  <span>Čeština</span>
+                </button>
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                  onClick={() => { setLang('en'); setShowLangMenu(false); }}
+                >
+                  <span>🇬🇧</span>
+                  <span>English</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

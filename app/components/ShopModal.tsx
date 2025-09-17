@@ -77,6 +77,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
   useEffect(() => {
     try {
       const audio = document.createElement('audio');
+      const can = audio.canPlayType ? audio.canPlayType('audio/mpeg') : '';
+      if (!can) { cashSoundRef.current = null; return; }
       audio.preload = 'auto';
       audio.volume = 1.0;
       const primary = '/sounds/11L-A_classic_cash_regis-1755860435960.mp3';
@@ -112,6 +114,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
   }, []);
 
   const playCash = () => {
+    // Respect global mute persisted by Game.tsx
+    try { if (localStorage.getItem('bgmMuted') === '1') return; } catch {}
     const a = cashSoundRef.current as HTMLAudioElement | null;
     if (!a) return;
     try {

@@ -17,6 +17,8 @@ export default function AuthGate({ children }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsUsername, setNeedsUsername] = useState(false);
+  // In-memory guest flag. Not persisted to keep session ephemeral.
+  const [guestMode, setGuestMode] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
@@ -78,6 +80,11 @@ export default function AuthGate({ children }: Props) {
   };
 
   const handleSignOut = async () => {
+    if (guestMode) {
+      // Exit guest session → return to sign-in screen
+      setGuestMode(false);
+      return;
+    }
     await signOut(auth);
   };
 
@@ -89,7 +96,7 @@ export default function AuthGate({ children }: Props) {
     );
   }
 
-  if (!user) {
+  if (!user && !guestMode) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
         <div className="bg-gray-800 p-6 rounded-xl shadow-xl max-w-sm w-full text-center text-white">
@@ -104,6 +111,14 @@ export default function AuthGate({ children }: Props) {
           >
             {t('auth.signin')}
           </button>
+          <div className="my-3 h-px bg-white/10" />
+          <div className="text-xs text-gray-400 mb-2">{t('auth.guest.desc')}</div>
+          <button
+            onClick={() => setGuestMode(true)}
+            className="w-full bg-gray-700 hover:bg-gray-600 transition-colors text-white font-medium py-2 px-4 rounded-lg"
+          >
+            {t('auth.guest')}
+          </button>
         </div>
       </div>
     );
@@ -116,10 +131,10 @@ export default function AuthGate({ children }: Props) {
           onClick={handleSignOut}
           className="text-xs bg-gray-800 text-gray-200 px-3 py-1 rounded hover:bg-gray-700"
         >
-          {t('auth.signout')}
+          {guestMode ? 'Exit guest' : t('auth.signout')}
         </button>
       </div>
-      {needsUsername && user ? (
+      {needsUsername && user && !guestMode ? (
         <UsernameModal user={user} onDone={() => setNeedsUsername(false)} />
       ) : (
         children

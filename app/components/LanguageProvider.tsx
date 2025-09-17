@@ -69,6 +69,8 @@ const CS: I18nDict = {
   'auth.signin': 'Přihlásit se přes Google',
   'auth.signout': 'Odhlásit se',
   'auth.error': 'Chyba při přihlášení, zkus to prosím znovu.',
+  'auth.guest': 'Pokračovat jako host',
+  'auth.guest.desc': 'Hrát bez ukládání postupu (nebudeš v žebříčku, nákupy se neuloží).',
 
   // Username
   'user.pickTitle': 'Zvol si přezdívku',
@@ -193,6 +195,8 @@ const EN: I18nDict = {
   'auth.signin': 'Sign in with Google',
   'auth.signout': 'Sign out',
   'auth.error': 'Sign-in error, please try again.',
+  'auth.guest': 'Continue as guest',
+  'auth.guest.desc': 'Play without saving progress (excluded from leaderboard, shop purchases are not saved).',
 
   // Username
   'user.pickTitle': 'Choose a nickname',
