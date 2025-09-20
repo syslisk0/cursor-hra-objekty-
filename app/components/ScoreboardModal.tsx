@@ -12,11 +12,21 @@ export default function ScoreboardModal({ onClose }: Props) {
   const { t } = useLanguage();
   const [items, setItems] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getTopBestScores(20)
-      .then(setItems)
-      .finally(() => setLoading(false));
+    (async () => {
+      setError(null);
+      try {
+        const list = await getTopBestScores(20);
+        setItems(list);
+      } catch (e: any) {
+        console.error('Scoreboard load failed:', e);
+        setError(t('scoreboard.error') || 'Failed to load scoreboard');
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   return (
@@ -28,6 +38,8 @@ export default function ScoreboardModal({ onClose }: Props) {
         </div>
         {loading ? (
           <div className="text-gray-300">{t('scoreboard.loading')}</div>
+        ) : error ? (
+          <div className="text-red-300 bg-red-900/30 border border-red-500/40 rounded p-3 mb-3">{error}</div>
         ) : (
           <ol className="space-y-2">
             {items.map((u, idx) => (
@@ -46,5 +58,6 @@ export default function ScoreboardModal({ onClose }: Props) {
     </div>
   );
 }
+
 
 

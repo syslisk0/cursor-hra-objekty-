@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLanguage } from '@/app/components/LanguageProvider';
 import { auth, googleProvider } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, User, signInAnonymously } from 'firebase/auth';
 import { ensureUserDocument, getUser } from '../services/userService';
 import UsernameModal from './UsernameModal';
 
@@ -12,19 +12,20 @@ type Props = {
 };
 
 export default function AuthGate({ children }: Props) {
-  const { t } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsUsername, setNeedsUsername] = useState(false);
   // In-memory guest flag. Not persisted to keep session ephemeral.
   const [guestMode, setGuestMode] = useState(false);
+  const [showLangMenu, setShowLangMenu] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
       setUser(nextUser);
       setLoading(false);
-      if (nextUser) {
+      if (nextUser && !nextUser.isAnonymous) {
         try {
           await ensureUserDocument(nextUser);
           const record = await getUser(nextUser.uid);
@@ -81,8 +82,9 @@ export default function AuthGate({ children }: Props) {
 
   const handleSignOut = async () => {
     if (guestMode) {
-      // Exit guest session → return to sign-in screen
+      // Exit guest session → also sign out anonymous auth
       setGuestMode(false);
+      try { await signOut(auth); } catch {}
       return;
     }
     await signOut(auth);
@@ -98,7 +100,37 @@ export default function AuthGate({ children }: Props) {
 
   if (!user && !guestMode) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 relative">
+        {/* Language switcher top-right */}
+        <div className="absolute top-4 right-4 z-20 text-white">
+          <div className="relative">
+            <button
+              className="flex items-center gap-2 px-3 py-2 bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 rounded-lg cursor-pointer"
+              onClick={() => setShowLangMenu(prev => !prev)}
+            >
+              <span className="text-xl">{lang === 'cs' ? '🇨🇿' : '🇬🇧'}</span>
+              <span className="text-sm text-gray-300 uppercase">{lang}</span>
+            </button>
+            {showLangMenu && (
+              <div className="absolute right-0 mt-2 w-32 bg-gray-800 border border-white/10 rounded-lg shadow-lg text-white">
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                  onClick={() => { setLang('cs'); setShowLangMenu(false); }}
+                >
+                  <span>🇨🇿</span>
+                  <span className="text-white">Čeština</span>
+                </button>
+                <button
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-700 text-left cursor-pointer"
+                  onClick={() => { setLang('en'); setShowLangMenu(false); }}
+                >
+                  <span>🇬🇧</span>
+                  <span className="text-white">English</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="bg-gray-800 p-6 rounded-xl shadow-xl max-w-sm w-full text-center text-white">
           <h1 className="text-xl font-semibold mb-3">{t('auth.required')}</h1>
           <p className="text-sm text-gray-300 mb-4">{t('auth.signin.desc')}</p>
@@ -114,7 +146,11 @@ export default function AuthGate({ children }: Props) {
           <div className="my-3 h-px bg-white/10" />
           <div className="text-xs text-gray-400 mb-2">{t('auth.guest.desc')}</div>
           <button
-            onClick={() => setGuestMode(true)}
+            onClick={async () => {
+              setGuestMode(true);
+              // Sign in anonymously so Firestore reads work under auth-protected rules
+              try { await signInAnonymously(auth); } catch (e) { /* ignore */ }
+            }}
             className="w-full bg-gray-700 hover:bg-gray-600 transition-colors text-white font-medium py-2 px-4 rounded-lg"
           >
             {t('auth.guest')}

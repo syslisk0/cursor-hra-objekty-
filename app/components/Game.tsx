@@ -165,7 +165,7 @@ export default function Game() {
   const invulnerableUntilRef = useRef<number>(0);
   // Developer mode flag and immortality toggle
   const devModeRef = useRef<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ uid: string; email: string | null; isAnonymous: boolean } | null>(null);
   const [isPortrait, setIsPortrait] = useState<boolean>(false);
   const [viewportTick, setViewportTick] = useState<number>(0);
   const [playerColor, setPlayerColor] = useState<string>(PLAYER_DEFAULT_COLOR);
@@ -600,7 +600,7 @@ export default function Game() {
   useEffect(() => {
     let unsubUser: (() => void) | null = null;
     const unsubAuth = onAuthStateChanged(auth, (u) => {
-      setCurrentUser(u ? { uid: u.uid, email: u.email } : null);
+      setCurrentUser(u ? { uid: u.uid, email: u.email, isAnonymous: !!u.isAnonymous } : null);
       // cleanup previous user subscription
       if (unsubUser) { unsubUser(); unsubUser = null; }
       if (u) {
@@ -666,7 +666,7 @@ export default function Game() {
       setCoinsEarned(earned);
       if (!coinsAwardedRef.current) {
         coinsAwardedRef.current = true;
-        if (currentUser && earned > 0) {
+        if (currentUser && !currentUser.isAnonymous && earned > 0) {
           addCoins(currentUser.uid, earned).catch(() => {});
         }
       }
@@ -677,7 +677,7 @@ export default function Game() {
   }, [gameState, score, currentUser]);
 
   const submitScore = useCallback(async (finalScore: number) => {
-    if (!currentUser) return { isRecord: false, best: finalScore };
+    if (!currentUser || currentUser.isAnonymous) return { isRecord: false, best: finalScore };
     const { updated, newBest } = await updateBestScoreIfHigher(currentUser.uid, currentUser.email, finalScore);
     return { isRecord: updated, best: newBest };
   }, [currentUser]);
