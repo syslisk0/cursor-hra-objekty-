@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import GameMenu from './GameMenu';
+import PreGameStoreModal from './PreGameStoreModal';
 import GameCanvas from './GameCanvas';
 import GameOverScreen from './GameOverScreen';
 import { drawEnemy } from './EnemyDraw';
@@ -135,8 +136,8 @@ export default function Game() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const bgmGainRef = useRef<GainNode | null>(null);
   const bgmSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const bgmBuffersRef = useRef<Map<'menu' | 'level1' | 'level2' | 'boss', AudioBuffer>>(new Map());
-  const bgmKeyRef = useRef<'menu' | 'level1' | 'level2' | 'boss' | null>(null);
+  const bgmBuffersRef = useRef<Map<'menu' | 'level1' | 'level2' | 'boss' | 'pregame', AudioBuffer>>(new Map());
+  const bgmKeyRef = useRef<'menu' | 'level1' | 'level2' | 'boss' | 'pregame' | null>(null);
 
   const [gameState, setGameState] = useState<GameState>('menu');
   const [score, setScore] = useState(0);
@@ -187,6 +188,9 @@ export default function Game() {
   const trailPointsRef = useRef<Array<{ x: number; y: number; t: number }>>([]);
   const lastDeathCircleUseRef = useRef<number>(0);
   const lastBlackHoleUseRef = useRef<number>(0);
+  // Pre-game store buffs for the next run only
+  const [showPreGameStore, setShowPreGameStore] = useState<boolean>(false);
+  const preRunBuffsRef = useRef<{ extraHearts: number; luckStacks: number }>({ extraHearts: 0, luckStacks: 0 });
   const handlePointerUpdate = useCallback((x: number, y: number) => {
     setMousePos({ x, y });
     // přidej bod do trailu a udržuj krátké okno (max 1000 ms, finální délka se řeže při kreslení)
@@ -297,7 +301,9 @@ export default function Game() {
     activeExplosionsRef.current = [];
     damageAnimationsRef.current = [];
     animationParticlesRef.current.clear();
-    setHearts(Math.max(1, 1 + (heartmanEquipped ? heartmanLevel : 0)));
+    // Start hearts = base 1 + Heartman bonus (if equipped) + extra hearts purchased for this run
+    const extraH = preRunBuffsRef.current?.extraHearts || 0;
+    setHearts(Math.max(1, 1 + (heartmanEquipped ? heartmanLevel : 0) + extraH));
     invulnerableUntilRef.current = 0;
     currentScoreIntervalMsRef.current = INITIAL_SCORE_INTERVAL;
     currentRedObjectSpeedRef.current = INITIAL_RED_OBJECT_SPEED;
@@ -384,6 +390,17 @@ export default function Game() {
     setTimeout(() => setShowTransitionOverlay(false), 650);
   }, [resetGameValues]);
 
+  const handleApplyPreRunBuffs = useCallback((buffs: { extraHearts: number; luckStacks: number }) => {
+    // Save buffs
+    preRunBuffsRef.current = { extraHearts: Math.max(0, buffs.extraHearts || 0), luckStacks: Math.max(0, buffs.luckStacks || 0) };
+    // Update hearts immediately to reflect purchased extra hearts for this run
+    setHearts(Math.max(1, 1 + (heartmanEquipped ? heartmanLevel : 0) + preRunBuffsRef.current.extraHearts));
+    // Close overlay; game is already in playing state with canvas shown and loops will resume automatically
+    setShowPreGameStore(false);
+  }, [heartmanEquipped, heartmanLevel]);
+
+  // (moved below)
+
   const startDeveloper = useCallback((targetScore?: number) => {
     resetGameValues();
     // enable developer mode; allow Enter to toggle immortality
@@ -453,7 +470,7 @@ export default function Game() {
   
 
   // Decode and cache buffer
-  const loadBgmBuffer = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss') => {
+  const loadBgmBuffer = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss' | 'pregame') => {
     if (bgmBuffersRef.current.has(key)) return bgmBuffersRef.current.get(key)!;
     const url = key === 'menu'
       ? '/sounds/mainmenu.mp3'
@@ -461,7 +478,9 @@ export default function Game() {
       ? '/sounds/level1.mp3'
       : key === 'level2'
       ? '/sounds/level2.mp3'
-      : '/sounds/boss1.mp3';
+      : key === 'boss'
+      ? '/sounds/boss1.mp3'
+      : '/sounds/pre-game%20shop_music.mp3';
     const ctx = await ensureAudioContext();
     if (!ctx) throw new Error('AudioContext unavailable');
     const resp = await fetch(url);
@@ -527,7 +546,7 @@ export default function Game() {
     bgmSourceRef.current = null;
   }, []);
 
-  const playBgm = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss') => {
+  const playBgm = useCallback(async (key: 'menu' | 'level1' | 'level2' | 'boss' | 'pregame') => {
     if (bgmKeyRef.current === key && bgmSourceRef.current) return;
     const ctx = await ensureAudioContext();
     if (!ctx || !bgmGainRef.current) return;
@@ -555,6 +574,21 @@ export default function Game() {
     }
   }, [ensureAudioContext, loadBgmBuffer, stopBgm]);
 
+  // Open the pre-game store from menu or play-again: show over game canvas
+  const handleMenuStartClick = useCallback(async () => {
+    // Reset pre-run buffs
+    preRunBuffsRef.current = { extraHearts: 0, luckStacks: 0 };
+    // Prepare a fresh field for the background canvas
+    resetGameValues();
+    // Switch to playing so canvas/background is visible
+    setGameState('playing');
+    // Open the store overlay
+    setShowPreGameStore(true);
+    // Ensure audio context is resumed and start pregame music immediately on first user gesture
+    try { await ensureAudioContext(); } catch {}
+    try { void playBgm('pregame'); } catch {}
+  }, [resetGameValues, ensureAudioContext, playBgm]);
+
   // Switch BGM by game state
   useEffect(() => {
     if (gameState === 'menu') {
@@ -565,6 +599,23 @@ export default function Game() {
       stopBgm();
     }
   }, [gameState, playBgm, stopBgm]);
+
+  // While Pre-Game Store is open, play its dedicated music; restore after closing
+  useEffect(() => {
+    if (showPreGameStore) {
+      void playBgm('pregame');
+      // retry shortly to overcome any first-load race conditions
+      const retry = setTimeout(() => { void playBgm('pregame'); }, 80);
+      return () => clearTimeout(retry);
+    }
+    // restore depending on current state
+    if (gameState === 'menu') void playBgm('menu');
+    else if (gameState === 'playing') {
+      // choose track by current level
+      if (levelRef.current >= 2) void playBgm('level2');
+      else void playBgm('level1');
+    } else if (gameState === 'gameOver') stopBgm();
+  }, [showPreGameStore, gameState, playBgm, stopBgm]);
 
   // While playing, detect level 2 switch and change track
   useEffect(() => {
@@ -698,7 +749,7 @@ export default function Game() {
   }, [gameState]);
 
   useEffect(() => {
-    if (gameState !== 'playing') {
+    if (gameState !== 'playing' || showPreGameStore) {
         if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
         gameLoopRef.current = null;
         return;
@@ -1554,10 +1605,10 @@ export default function Game() {
             gameLoopRef.current = null; 
         }
     };
-  }, [gameState, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect, isPortrait, viewportTick]);
+  }, [gameState, showPreGameStore, mousePos, endGame, hearts, timeSlowEffect, damageSlowEffect, isPortrait, viewportTick]);
 
   useEffect(() => {
-    if (gameState !== 'playing') {
+    if (gameState !== 'playing' || showPreGameStore) {
       if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
       scoreIntervalRef.current = null;
       return;
@@ -1619,7 +1670,9 @@ export default function Game() {
     }
 
     if (score > 0 && score % SHIELD_SPAWN_INTERVAL_SCORE === 0 && score !== lastShieldSpawnScoreRef.current && shieldsRef.current.length === 0 && pendingShieldSpawnsRef.current.length === 0) {
-      if (Math.random() < HEART_SPAWN_CHANCE) {
+      const luckMult = 1 + (preRunBuffsRef.current?.luckStacks || 0) * 0.05;
+      const heartChance = Math.min(0.95, HEART_SPAWN_CHANCE * luckMult);
+      if (Math.random() < heartChance) {
         addPendingShieldSpawn(canvas, pendingShieldSpawnsRef.current);
       }
       // record attempt regardless to prevent repeat rolling on same score
@@ -1639,7 +1692,9 @@ export default function Game() {
     }
 
     if (canSpawnBombConditions && shouldSpawnThisBomb) {
-      if (Math.random() < BOMB_SPAWN_CHANCE) {
+      const luckMult = 1 + (preRunBuffsRef.current?.luckStacks || 0) * 0.05;
+      const bombChance = Math.min(0.95, BOMB_SPAWN_CHANCE * luckMult);
+      if (Math.random() < bombChance) {
         addBombCollectible(canvas, bombCollectiblesRef.current);
       }
       // record attempt regardless to prevent repeat rolling on same score
@@ -1659,7 +1714,9 @@ export default function Game() {
     }
 
     if (canSpawnHourglassConditions && shouldSpawnThisHourglass) {
-      if (Math.random() < HOURGLASS_SPAWN_CHANCE) {
+      const luckMult = 1 + (preRunBuffsRef.current?.luckStacks || 0) * 0.05;
+      const hgChance = Math.min(0.95, HOURGLASS_SPAWN_CHANCE * luckMult);
+      if (Math.random() < hgChance) {
         addHourglassCollectible(canvas, hourglassCollectiblesRef.current);
       }
       // record attempt regardless to prevent repeat rolling on same score
@@ -1670,11 +1727,11 @@ export default function Game() {
       if (scoreIntervalRef.current) clearInterval(scoreIntervalRef.current);
       scoreIntervalRef.current = null;
     };
-  }, [gameState, score, addPendingSpawn, timelapseEquipped]);
+  }, [gameState, showPreGameStore, score, addPendingSpawn, timelapseEquipped]);
 
   // Boss trigger when reaching score 500
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || showPreGameStore) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const now = Date.now();
@@ -1710,7 +1767,7 @@ export default function Game() {
         bossActiveRef.current = true;
       }, 3000);
     }
-  }, [score, gameState]);
+  }, [score, gameState, showPreGameStore]);
 
   // Boss progression and cleanup
   useEffect(() => {
@@ -1795,12 +1852,19 @@ export default function Game() {
     };
     const id = setInterval(tick, 16);
     return () => clearInterval(id);
-  }, [gameState, mousePos]);
+  }, [gameState, showPreGameStore, mousePos]);
 
   if (gameState === 'menu') {
     return (
       <>
-        <GameMenu onStartGame={startGameWithTransition} onStartDeveloper={startDeveloper} isMuted={bgmMuted} onToggleMute={toggleBgmMuted} />
+        <GameMenu onStartGame={handleMenuStartClick} onStartDeveloper={startDeveloper} isMuted={bgmMuted} onToggleMute={toggleBgmMuted} />
+        {showPreGameStore && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+              <PreGameStoreModal onClose={() => setShowPreGameStore(false)} onApply={handleApplyPreRunBuffs} />
+            </div>
+          </div>
+        )}
         {showTransitionOverlay && (
           <div
             className={`fixed inset-0 z-50 transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`}
@@ -1839,6 +1903,13 @@ export default function Game() {
         blackHoleLevel={blackHoleLevel}
         blackHoleEquipped={blackHoleEquipped}
       />
+      {showPreGameStore && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+            <PreGameStoreModal onClose={() => setShowPreGameStore(false)} onApply={handleApplyPreRunBuffs} />
+          </div>
+        </div>
+      )}
       {showTransitionOverlay && (
         <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
       )}
@@ -1857,12 +1928,19 @@ export default function Game() {
           displayedYellowObjectSpeed={displayedYellowObjectSpeed}
           redObjectCount={redObjectCount}
           yellowObjectCount={yellowObjectCount}
-          onPlayAgain={startGame}
+          onPlayAgain={handleMenuStartClick}
           onBackToMenu={backToMenu}
           onSubmitScore={submitScore}
           coinsEarned={coinsEarned}
         />
     </div>
+    {showPreGameStore && (
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4">
+        <div className="bg-gray-800 p-6 sm:p-8 rounded-lg shadow-xl w-[92vw] max-w-3xl max-h-[90vh] overflow-y-auto">
+          <PreGameStoreModal onClose={() => setShowPreGameStore(false)} onApply={handleApplyPreRunBuffs} />
+        </div>
+      </div>
+    )}
     {showTransitionOverlay && (
       <div className={`fixed inset-0 z-[999] bg-black transition-opacity duration-300 ${transitionOpaque ? 'opacity-100' : 'opacity-0'}`} />
     )}

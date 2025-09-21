@@ -322,7 +322,13 @@ export function useGame(): UseGameReturn {
           // Determine destroyed enemies and play death sound for each
           const toDestroy = objectsRef.current.filter(obj => Math.hypot(obj.x - bomb.x, obj.y - bomb.y) < BOMB_EXPLOSION_RADIUS);
           toDestroy.forEach(() => {
-            try { new Audio('/sounds/enemydeath.mp3').play(); } catch {}
+            try {
+              const el = new Audio();
+              const can = el.canPlayType ? el.canPlayType('audio/mpeg') : '';
+              if (!can) return;
+              el.src = '/sounds/enemydeath.mp3';
+              void el.play();
+            } catch {}
           });
           objectsRef.current = objectsRef.current.filter(obj => Math.hypot(obj.x - bomb.x, obj.y - bomb.y) >= BOMB_EXPLOSION_RADIUS);
           destroyedByBombCountRef.current += toDestroy.length;
@@ -438,15 +444,20 @@ export function useGame(): UseGameReturn {
             setHearts(prev => Math.max(0, prev - 1));
             // Only play sound on non-lethal hit
             if (willBe > 0) {
-              try {
-                const a = healthLoseAudioRef.current;
-                if (a) { a.currentTime = 0; a.play(); }
-                else { new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3').play(); }
-              } catch {}
-            }
-            setDamageSlowEffect({ isActive: true, startTime: Date.now(), duration: DAMAGE_SLOW_DURATION, slowFactor: DAMAGE_SLOW_FACTOR });
-            invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
-            objectsRef.current.forEach(o => {
+            try {
+              const a = healthLoseAudioRef.current;
+              if (a) { a.currentTime = 0; a.play(); }
+              else {
+                const el = new Audio();
+                const can = el.canPlayType ? el.canPlayType('audio/mpeg') : '';
+                if (!can) { /* unsupported codec */ }
+                else { el.src = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3'; void el.play(); }
+              }
+            } catch {}
+          }
+          setDamageSlowEffect({ isActive: true, startTime: Date.now(), duration: DAMAGE_SLOW_DURATION, slowFactor: DAMAGE_SLOW_FACTOR });
+          invulnerableUntilRef.current = Date.now() + DAMAGE_SLOW_DURATION;
+          objectsRef.current.forEach(o => {
               const kx = o.x - mousePos.x; const ky = o.y - mousePos.y; const mag = Math.hypot(kx, ky);
               if (mag > 0) { o.dx = (kx / mag); o.dy = (ky / mag); o.x += o.dx * KNOCKBACK_FORCE; o.y += o.dy * KNOCKBACK_FORCE; }
             });
@@ -572,12 +583,16 @@ export function useGame(): UseGameReturn {
       // Initialize and unlock audio on user gesture
       if (!healthLoseAudioRef.current) {
         try {
-          const a = new Audio('/sounds/11L-health_lose_sound_ef-1755881941542.mp3');
-          a.preload = 'auto';
-          a.volume = 1.0;
-          healthLoseAudioRef.current = a;
-          // Attempt to unlock by playing and pausing immediately
-          a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+          const a = new Audio();
+          const can = a.canPlayType ? a.canPlayType('audio/mpeg') : '';
+          if (can) {
+            a.src = '/sounds/11L-health_lose_sound_ef-1755881941542.mp3';
+            a.preload = 'auto';
+            a.volume = 1.0;
+            healthLoseAudioRef.current = a;
+            // Attempt to unlock by playing and pausing immediately
+            a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+          }
         } catch {}
       }
       setGameState('playing');

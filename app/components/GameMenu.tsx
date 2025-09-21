@@ -225,6 +225,28 @@ export default function GameMenu({ onStartGame, onStartDeveloper, isMuted, onTog
                 <p className="text-gray-300">{t('menu.info.abilitiesBody')}</p>
               </section>
 
+              {/* Pre-Game Store info */}
+              <section>
+                <h3 className="text-xl font-semibold text-white mb-2">Pre-Game Store</h3>
+                {lang === 'cs' ? (
+                  <div className="text-gray-300 space-y-2">
+                    <p>Po stisku <strong>Play</strong> se nad herním pozadím otevře obchod pro tento pokus. Během otevření je hra pozastavená.</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><strong>Extra srdce</strong>: +1 startovní srdce za <strong>50</strong> coinů (bez limitu).</li>
+                      <li><strong>Štěstí</strong>: +5% šance na drop (srdce/bomba/přesýpací hodiny) za <strong>50</strong> coinů za nákup (bez limitu).</li>
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-gray-300 space-y-2">
+                    <p>After pressing <strong>Play</strong>, a store opens over the game background. The game is paused while it’s open.</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li><strong>Extra heart</strong>: +1 starting heart for <strong>50</strong> coins (no limit).</li>
+                      <li><strong>Luck</strong>: +5% drop chance (hearts/bomb/hourglass) per purchase for <strong>50</strong> coins (no limit).</li>
+                    </ul>
+                  </div>
+                )}
+              </section>
+
               <section>
                 <h3 className="text-xl font-semibold text-white mb-2">{t('menu.info.collectiblesTitle')}</h3>
                 <ul className="list-disc list-inside space-y-1 text-gray-300">
