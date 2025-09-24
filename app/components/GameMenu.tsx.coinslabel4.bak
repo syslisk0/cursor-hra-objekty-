@@ -148,7 +148,7 @@ export default function GameMenu({ onStartGame, onStartDeveloper, isMuted, onTog
           <div className="flex items-center justify-center gap-6 mb-8">
             <div className="relative flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
               <span className="text-2xl">💰</span>
-              <span className="text-xl font-bold text-yellow-400">{coinsState.coins?.toLocaleString() || 0}</span> <span className="text-sm text-yellow-200">{t('menu.coins')}</span>
+              <span className="text-xl font-bold text-yellow-400">{coinsState.coins?.toLocaleString() || 0}</span>
 
 
               {showBuyMenu && (

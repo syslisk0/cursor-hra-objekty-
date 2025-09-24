@@ -21,6 +21,8 @@ export default function ShopModal({ onClose }: ShopModalProps) {
   const [equipped, setEquipped] = useState<(AbilityKey | null)[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [showBuyMenu, setShowBuyMenu] = useState<boolean>(false);
+  const buyMenuRef = useRef<HTMLDivElement | null>(null);
   const lastSlotsRef = useRef<number>(1);
   const [highlightSlotIdx, setHighlightSlotIdx] = useState<number | null>(null);
   const [draggedAbility, setDraggedAbility] = useState<AbilityKey | null>(null);
@@ -72,6 +74,21 @@ export default function ShopModal({ onClose }: ShopModalProps) {
     });
     return () => { if (unsubUser) unsubUser(); unsubAuth(); };
   }, []);
+
+  // Close coin buy menu on outside click or ESC
+  useEffect(() => {
+    if (!showBuyMenu) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as Node | null;
+      if (buyMenuRef.current && t && !buyMenuRef.current.contains(t)) {
+        setShowBuyMenu(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowBuyMenu(false); };
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('click', onDocClick); document.removeEventListener('keydown', onKey); };
+  }, [showBuyMenu]);
 
   // Preload cash register sound with fallbacks; set src directly to avoid source-type quirks
   useEffect(() => {
@@ -294,11 +311,114 @@ export default function ShopModal({ onClose }: ShopModalProps) {
             <p className="text-sm text-gray-400">{t('shop.subtitle')}</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 relative">
           <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
             <span className="text-2xl">💰</span>
             <span className="text-xl font-bold text-yellow-400">{coins.toLocaleString()}</span>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setShowBuyMenu((v) => !v); }}
+              className="ml-2 w-7 h-7 rounded-md bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-400/40 text-yellow-300 flex items-center justify-center text-base font-bold transition-colors cursor-pointer"
+              title="Koupit coiny"
+              aria-label="Koupit coiny"
+            >
+              +
+            </button>
           </div>
+          {/* Buy coins fullscreen overlay */}
+          {showBuyMenu && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowBuyMenu(false)} />
+              <div
+                ref={buyMenuRef}
+                onClick={(e) => e.stopPropagation()}
+                className="relative z-[61] w-[92vw] max-w-2xl bg-gray-900/95 border border-white/10 rounded-2xl shadow-2xl p-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-lg font-bold text-white">Koupit coiny</div>
+                  <button
+                    onClick={() => setShowBuyMenu(false)}
+                    className="px-3 py-1 rounded-md bg-gray-800/70 hover:bg-gray-700/70 border border-white/10 text-white cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="text-sm text-gray-300 mb-4">Vyber balíček coinů</div>
+                <div className="grid grid-cols-2 gap-4">
+                  <button
+                    onClick={() => { setError('Nákup 50 coinů bude brzy dostupný.'); setShowBuyMenu(false); }}
+                    className="group flex items-center gap-4 p-4 rounded-xl bg-gray-800/60 hover:bg-gray-700/60 border border-white/10 hover:border-white/20 transition cursor-pointer"
+                  >
+                    <div className="relative w-14 h-14 rounded-xl bg-yellow-500/10 border border-yellow-500/25">
+                      <svg className="absolute" width="18" height="18" viewBox="0 0 20 20" style={{ left: '18px', top: '16px' }}>
+                        <circle cx="10" cy="10" r="8" fill="#FACC15" stroke="#D97706" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute opacity-90" width="16" height="16" viewBox="0 0 20 20" style={{ left: '8px', top: '22px' }}>
+                        <circle cx="10" cy="10" r="7" fill="#FCD34D" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute opacity-75" width="14" height="14" viewBox="0 0 20 20" style={{ left: '26px', top: '6px' }}>
+                        <circle cx="10" cy="10" r="6" fill="#FDE68A" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <div className="text-white font-bold text-lg">50</div>
+                      <div className="text-xs text-gray-400">Malý balíček</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setError('Nákup 100 coinů bude brzy dostupný.'); setShowBuyMenu(false); }}
+                    className="group flex items-center gap-4 p-4 rounded-xl bg-amber-900/30 hover:bg-amber-900/40 border border-amber-500/30 hover:border-amber-500/40 transition cursor-pointer"
+                  >
+                    <div className="relative w-14 h-14 rounded-xl bg-amber-500/20 border border-amber-500/40">
+                      <svg className="absolute" width="18" height="18" viewBox="0 0 20 20" style={{ left: '6px', top: '18px' }}>
+                        <circle cx="10" cy="10" r="8" fill="#FACC15" stroke="#D97706" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute" width="18" height="18" viewBox="0 0 20 20" style={{ left: '20px', top: '20px' }}>
+                        <circle cx="10" cy="10" r="8" fill="#FCD34D" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute" width="18" height="18" viewBox="0 0 20 20" style={{ left: '13px', top: '8px' }}>
+                        <circle cx="10" cy="10" r="8" fill="#FDE68A" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute opacity-90" width="16" height="16" viewBox="0 0 20 20" style={{ left: '2px', top: '6px' }}>
+                        <circle cx="10" cy="10" r="7" fill="#FACC15" stroke="#D97706" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute opacity-90" width="16" height="16" viewBox="0 0 20 20" style={{ left: '26px', top: '6px' }}>
+                        <circle cx="10" cy="10" r="7" fill="#FCD34D" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                      <svg className="absolute opacity-80" width="14" height="14" viewBox="0 0 20 20" style={{ left: '18px', top: '2px' }}>
+                        <circle cx="10" cy="10" r="6" fill="#FDE68A" stroke="#B45309" strokeWidth="2" />
+                      </svg>
+                      <span className="absolute -top-1 -right-1 text-[10px] px-1 py-[2px] rounded bg-amber-500 text-black font-extrabold border border-amber-300">x2</span>
+                    </div>
+                    <div className="text-left">
+                      <div className="text-white font-bold text-lg">100</div>
+                      <div className="text-xs text-gray-400">Balíček</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setError('Nákup 500 coinů bude brzy dostupný.'); setShowBuyMenu(false); }}
+                    className="group flex items-center gap-4 p-4 rounded-xl bg-gray-800/60 hover:bg-gray-700/60 border border-white/10 hover:border-white/20 transition cursor-pointer"
+                  >
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl bg-yellow-500/20 border border-yellow-500/30">💰</div>
+                    <div className="text-left">
+                      <div className="text-white font-bold text-lg">500</div>
+                      <div className="text-xs text-gray-400">Velký balíček</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => { setError('Nákup 1000 coinů bude brzy dostupný.'); setShowBuyMenu(false); }}
+                    className="group flex items-center gap-4 p-4 rounded-xl bg-gray-800/60 hover:bg-gray-700/60 border border-white/10 hover:border-white/20 transition cursor-pointer"
+                  >
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl bg-yellow-500/20 border border-yellow-500/30">🏦</div>
+                    <div className="text-left">
+                      <div className="text-white font-bold text-lg">1000</div>
+                      <div className="text-xs text-gray-400">Mega balík</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <button 
             onClick={onClose} 
             className="px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg border border-white/10 hover:border-white/20 transition-all duration-200 cursor-pointer"
@@ -448,8 +568,11 @@ export default function ShopModal({ onClose }: ShopModalProps) {
                   tabIndex={0}
                 >
                   <div className="p-4 h-full flex flex-col items-center justify-center text-center">
-                    <div className="w-14 h-14 rounded-xl mb-2 bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center text-2xl font-bold text-black shadow-lg group-hover:scale-110 transition-transform duration-300">
-                      💰
+                    <div className="w-14 h-14 rounded-xl mb-2 relative bg-gradient-to-br from-yellow-500 to-orange-500 flex items-center justify-center text-2xl font-bold text-black shadow-lg group-hover:scale-110 transition-transform duration-300">
+                      <span>💰</span>
+                      <svg className="absolute right-1 top-1/2 -translate-y-1/2" width="12" height="12" viewBox="0 0 20 20">
+                        <circle cx="10" cy="10" r="7" fill="#FCD34D" stroke="#B45309" strokeWidth="2" />
+                      </svg>
                     </div>
                     <div className="text-sm font-semibold mb-1 text-yellow-400">{t('shop.buySlot')}</div>
                     <div className="text-xs text-gray-300 mb-1">{slotCost.toLocaleString()} {t('shop.coins')}</div>

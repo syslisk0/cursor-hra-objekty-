@@ -166,7 +166,7 @@ export default function PreGameStoreModal({ onClose, onApply }: PreGameStoreModa
                 <div className="w-8 h-8 bg-red-500/30 rounded-lg flex items-center justify-center">💖</div>
                 <div>
                   <h3 className="text-xl font-bold">Extra srdce</h3>
-                  <p className="text-gray-400 text-sm">+1 startovní srdce pro tento pokus (bez limitu)</p>
+                  <p className="text-gray-400 text-sm">+1 startovní srdce pro tuto hru (bez limitu)</p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -186,8 +186,8 @@ export default function PreGameStoreModal({ onClose, onApply }: PreGameStoreModa
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-8 h-8 bg-emerald-500/30 rounded-lg flex items-center justify-center">🍀</div>
                 <div>
-                  <h3 className="text-xl font-bold">Štěstí</h3>
-                  <p className="text-gray-400 text-sm">+5% šance na drop za nákup (bez limitu)</p>
+                  <h3 className="text-xl font-bold">Větší šance na spawnutí itemů</h3>
+                  <p className="text-gray-400 text-sm">+5% šance na spawnutí itemů za nákup (bez limitu)</p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -206,9 +206,9 @@ export default function PreGameStoreModal({ onClose, onApply }: PreGameStoreModa
           {/* Summary and actions */}
           <div className="mt-4 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-4">
             <div className="text-gray-200 text-sm mb-3">
-              <div className="font-semibold">Shrnutí pro tento pokus:</div>
+              <div className="font-semibold">Shrnutí pro tuto hru:</div>
               <div>+{totalSummary.hearts} ❤️ srdcí navíc</div>
-              <div>+{totalSummary.luckPct}% 🍀 šance na drop</div>
+              <div>+{totalSummary.luckPct}% 🍀 šance na spawnutí itemů</div>
             </div>
             <div className="flex flex-col items-stretch gap-2">
               {hasPurchase ? (
